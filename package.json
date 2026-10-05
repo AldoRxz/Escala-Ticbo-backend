@@ -21,6 +21,7 @@
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
+    "setup:env": "node scripts/setup-env.ts",
     "db:up": "docker compose up -d db",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file-if-exists=.env src/shared/infrastructure/database/migrate.ts",

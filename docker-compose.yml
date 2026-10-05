@@ -1,0 +1,50 @@
+# Local development. `npm run db:up` starts only PostgreSQL; the API usually runs
+# on the host with `npm run start:dev`. To try the production image:
+#   docker compose --profile app up --build
+# Credentials come from .env (`npm run setup:env`); nothing is hardcoded here.
+name: ticbo
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run npm run setup:env}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?run npm run setup:env}
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # Sized like the smallest managed instance we would start with.
+    mem_limit: 512m
+
+  api:
+    profiles: ['app']
+    build:
+      context: .
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: '4000'
+      DATABASE_URL: postgres://ticbo_app:${POSTGRES_APP_PASSWORD}@db:5432/${POSTGRES_DB}
+      DATABASE_MIGRATION_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    ports:
+      - '127.0.0.1:4000:4000'
+    mem_limit: 256m
+    cpus: 0.5
+
+volumes:
+  pgdata:
