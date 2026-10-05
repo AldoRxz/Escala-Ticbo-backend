@@ -32,8 +32,9 @@ const validClaims = {
 
 function providerAnswering(body: unknown, status = 200) {
   const requests: Array<{ url: string; body: URLSearchParams }> = [];
-  const fetchFn = (async (url: string | URL | Request, init?: RequestInit) => {
-    requests.push({ url: String(url), body: init?.body as URLSearchParams });
+  const fetchFn = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    requests.push({ url, body: init?.body as URLSearchParams });
     return new Response(JSON.stringify(body), { status });
   }) as typeof fetch;
   return { provider: new GoogleOAuthProvider(config, clock, fetchFn), requests };

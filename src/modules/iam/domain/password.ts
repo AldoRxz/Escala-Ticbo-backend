@@ -14,6 +14,8 @@ export function normalizePassword(plain: string): string {
 }
 
 export function assertAcceptablePassword(plain: string): void {
+  // NIST counts each Unicode code point as one character, which is what spreading yields.
+  // oxlint-disable-next-line typescript/no-misused-spread
   const length = [...normalizePassword(plain)].length;
   if (length < PASSWORD_MIN_LENGTH || length > PASSWORD_MAX_LENGTH) {
     throw new WeakPasswordError(PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH);
