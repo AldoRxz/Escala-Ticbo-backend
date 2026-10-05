@@ -9,13 +9,13 @@ import type {
   OAuthProvider,
 } from '../../application/ports/oauth-provider.js';
 import type { OAuthProfile } from '../../domain/oauth.js';
+import { FULL_NAME_MAX_LENGTH } from '../../domain/user.js';
 
 const AUTHORIZATION_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const ISSUERS = new Set(['https://accounts.google.com', 'accounts.google.com']);
 const CLOCK_SKEW_SECONDS = 60;
 const REQUEST_TIMEOUT_MS = 10_000;
-const FULL_NAME_MAX_LENGTH = 120;
 
 const tokenResponseSchema = z.object({ id_token: z.string().min(1) });
 

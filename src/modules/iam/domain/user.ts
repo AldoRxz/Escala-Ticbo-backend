@@ -3,6 +3,8 @@ export type MemberRole = (typeof MEMBER_ROLES)[number];
 
 export type AccountType = 'personal' | 'organization';
 
+export const FULL_NAME_MAX_LENGTH = 120;
+
 export interface User {
   readonly id: string;
   readonly email: string;
