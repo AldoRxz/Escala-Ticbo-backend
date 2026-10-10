@@ -45,6 +45,8 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
     AppModule.forRoot(config),
     adapter,
     {
+      // The JSON parser is registered below (acceptEmptyJsonBodies); the API takes no form bodies.
+      bodyParser: false,
       logger: new ConsoleLogger({
         json: config.env === 'production',
         logLevels: NEST_LOG_LEVELS[config.logLevel],
@@ -52,6 +54,7 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
     },
   );
 
+  acceptEmptyJsonBodies(app);
   await app.register(fastifyCookie, { secret: config.auth.cookieSecret });
   await app.register(fastifyHelmet);
   app.enableCors({
@@ -67,4 +70,24 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
   app.enableShutdownHooks();
 
   return app;
+}
+
+/**
+ * Bodiless POSTs (/auth/refresh, /auth/logout) often arrive with
+ * `content-type: application/json` because client wrappers always set it.
+ * Fastify rejects that with 400; treat it as no body and keep Fastify's
+ * prototype-poisoning-safe parser for everything else.
+ */
+function acceptEmptyJsonBodies(app: NestFastifyApplication): void {
+  const fastify = app.getHttpAdapter().getInstance();
+  const parseJson = fastify.getDefaultJsonParser('error', 'error');
+  fastify.removeContentTypeParser('application/json');
+  fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (request, body, done) => {
+    const text = body as string; // parseAs: 'string'
+    if (text === '') {
+      done(null, undefined);
+      return;
+    }
+    void parseJson(request, text, done);
+  });
 }

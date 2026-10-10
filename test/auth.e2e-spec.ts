@@ -157,6 +157,31 @@ describe('Auth (e2e)', () => {
     expect((await refresh(token)).statusCode).toBe(401);
   });
 
+  it('accepts bodiless JSON posts but rejects malformed JSON', async () => {
+    const bodiless = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/refresh',
+      headers: { 'content-type': 'application/json' },
+    });
+    const malformed = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      headers: { 'content-type': 'application/json' },
+      payload: '{"email":',
+    });
+    const poisoned = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      headers: { 'content-type': 'application/json' },
+      payload: '{"__proto__":{"admin":true},"email":"a@b.co","password":"x"}',
+    });
+
+    expect(bodiless.statusCode).toBe(401);
+    expect(malformed.statusCode).toBe(400);
+    expect(malformed.headers['content-type']).toContain('application/problem+json');
+    expect(poisoned.statusCode).toBe(400);
+  });
+
   it('refuses a refresh without cookie', async () => {
     const response = await app.inject({ method: 'POST', url: '/api/v1/auth/refresh' });
 
