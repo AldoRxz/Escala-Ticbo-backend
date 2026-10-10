@@ -44,6 +44,7 @@ export function testConfig(overrides: Record<string, string> = {}): AppConfig {
     DATABASE_POOL_MAX: '4',
     JWT_ACCESS_SECRET: randomBytes(32).toString('base64url'),
     COOKIE_SECRET: randomBytes(32).toString('base64url'),
+    VAULT_KEYS: `test-v1:${randomBytes(32).toString('base64')}`,
     // Cheaper hashing keeps the suite fast; production uses the OWASP baseline.
     ARGON2_MEMORY_KIB: '8192',
     ARGON2_TIME_COST: '1',

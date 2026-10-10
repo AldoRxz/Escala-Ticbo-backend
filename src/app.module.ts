@@ -6,6 +6,7 @@ import { ConfigModule } from './config/config.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { IamModule } from './modules/iam/iam.module.js';
 import { JwtAuthGuard } from './modules/iam/presentation/http/jwt-auth.guard.js';
+import { VaultModule } from './modules/vault/vault.module.js';
 import { DatabaseModule } from './shared/infrastructure/database/database.module.js';
 import { ProblemDetailsFilter } from './shared/infrastructure/http/problem-details.filter.js';
 import { SharedModule } from './shared/shared.module.js';
@@ -27,6 +28,7 @@ export class AppModule {
         }),
         HealthModule,
         IamModule,
+        VaultModule,
       ],
       providers: [
         { provide: APP_FILTER, useClass: ProblemDetailsFilter },

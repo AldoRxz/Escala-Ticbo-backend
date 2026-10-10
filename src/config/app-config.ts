@@ -18,6 +18,8 @@ export interface DatabaseConfig {
   url: string;
   poolMax: number;
   ssl: boolean;
+  /** CA certificate (PEM) to verify the server with; null uses the system CAs. */
+  sslCa: string | null;
 }
 
 export interface AccessTokenConfig {
@@ -55,6 +57,11 @@ export interface AuthConfig {
   google: GoogleOAuthConfig | null;
 }
 
+export interface VaultConfig {
+  /** Key-encryption keys; the first one wraps new secrets, all of them can unwrap. */
+  keys: Array<{ id: string; key: Buffer }>;
+}
+
 /**
  * Validated runtime configuration. Declared as an abstract class so Nest can
  * inject it by type; the value is a plain object built by `loadConfig`.
@@ -66,4 +73,5 @@ export abstract class AppConfig {
   abstract readonly http: HttpConfig;
   abstract readonly database: DatabaseConfig;
   abstract readonly auth: AuthConfig;
+  abstract readonly vault: VaultConfig;
 }

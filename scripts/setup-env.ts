@@ -37,6 +37,7 @@ values.set(
 );
 values.set('JWT_ACCESS_SECRET', secret(48));
 values.set('COOKIE_SECRET', secret(48));
+values.set('VAULT_KEYS', `local-v1:${randomBytes(32).toString('base64')}`);
 
 const output = lines.map((line) => {
   const key = /^([A-Z0-9_]+)=/.exec(line)?.[1];

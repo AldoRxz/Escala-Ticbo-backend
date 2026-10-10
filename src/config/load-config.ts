@@ -12,6 +12,35 @@ const commaSeparated = z.string().transform((value) =>
     .filter(Boolean),
 );
 
+const KEY_ID_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
+
+/** `id:base64Key[,id:base64Key...]`: 256-bit key-encryption keys, the first one active. */
+const vaultKeys = commaSeparated.transform((entries, ctx) => {
+  const keys: Array<{ id: string; key: Buffer }> = [];
+  for (const entry of entries) {
+    const separator = entry.indexOf(':');
+    const id = entry.slice(0, separator);
+    const key = Buffer.from(entry.slice(separator + 1), 'base64');
+    if (separator < 1 || !KEY_ID_PATTERN.test(id) || key.length !== 32) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'each entry must be <id>:<32 random bytes in base64>',
+      });
+      return z.NEVER;
+    }
+    if (keys.some((existing) => existing.id === id)) {
+      ctx.addIssue({ code: 'custom', message: `key id "${id}" is repeated` });
+      return z.NEVER;
+    }
+    keys.push({ id, key });
+  }
+  if (keys.length === 0) {
+    ctx.addIssue({ code: 'custom', message: 'at least one key is required' });
+    return z.NEVER;
+  }
+  return keys;
+});
+
 const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -28,6 +57,9 @@ const envSchema = z
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
     DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
     DATABASE_SSL: booleanString.default(false),
+    // PEM of the CA that signs the database certificate (Supabase uses its own CA).
+    // Literal "\n" sequences are accepted so it fits in a single env line.
+    DATABASE_SSL_CA: z.string().min(1).optional(),
     JWT_ACCESS_SECRET: secret,
     JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
     JWT_ISSUER: z.string().min(1).default('ticbo-api'),
@@ -40,6 +72,7 @@ const envSchema = z
     ARGON2_PARALLELISM: z.coerce.number().int().min(1).max(8).default(1),
     GOOGLE_CLIENT_ID: z.string().min(1).optional(),
     GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+    VAULT_KEYS: vaultKeys,
   })
   .superRefine((env, ctx) => {
     if (Boolean(env.GOOGLE_CLIENT_ID) !== Boolean(env.GOOGLE_CLIENT_SECRET)) {
@@ -92,6 +125,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
       url: env.DATABASE_URL,
       poolMax: env.DATABASE_POOL_MAX,
       ssl: env.DATABASE_SSL,
+      sslCa: env.DATABASE_SSL_CA?.replace(/\\n/g, '\n') ?? null,
     },
     auth: {
       accessToken: {
@@ -119,6 +153,9 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
               redirectUri: `${apiPublicUrl}${API_BASE_PATH}/auth/oauth/google/callback`,
             }
           : null,
+    },
+    vault: {
+      keys: env.VAULT_KEYS,
     },
   };
 }

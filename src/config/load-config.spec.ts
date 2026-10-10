@@ -1,5 +1,8 @@
+import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { loadConfig } from './load-config.js';
+
+const vaultKey = randomBytes(32);
 
 const validEnv = {
   API_PUBLIC_URL: 'http://localhost:4000/',
@@ -8,6 +11,7 @@ const validEnv = {
   DATABASE_URL: 'postgres://ticbo_app:secret@localhost:5432/ticbo',
   JWT_ACCESS_SECRET: 'a'.repeat(32),
   COOKIE_SECRET: 'b'.repeat(32),
+  VAULT_KEYS: `local-v1:${vaultKey.toString('base64')}`,
 };
 
 describe('loadConfig', () => {
@@ -53,6 +57,38 @@ describe('loadConfig', () => {
   it('requires both Google credentials together', () => {
     expect(() => loadConfig({ ...validEnv, GOOGLE_CLIENT_ID: 'client-id' })).toThrow(
       /must be set together/,
+    );
+  });
+
+  it('parses vault keys, the first one being active', () => {
+    const second = randomBytes(32);
+    const config = loadConfig({
+      ...validEnv,
+      VAULT_KEYS: `local-v2:${second.toString('base64url')}, ${validEnv.VAULT_KEYS}`,
+    });
+
+    expect(config.vault.keys.map((key) => key.id)).toEqual(['local-v2', 'local-v1']);
+    expect(config.vault.keys[0]?.key.equals(second)).toBe(true);
+    expect(config.vault.keys[1]?.key.equals(vaultKey)).toBe(true);
+  });
+
+  it.each([
+    ['a short key', `local-v1:${randomBytes(16).toString('base64')}`],
+    ['a missing id', randomBytes(32).toString('base64')],
+    ['a repeated id', `k:${randomBytes(32).toString('base64')},k:${randomBytes(32).toString('base64')}`],
+  ])('rejects vault keys with %s', (_, value) => {
+    expect(() => loadConfig({ ...validEnv, VAULT_KEYS: value })).toThrow(/VAULT_KEYS/);
+  });
+
+  it('accepts a single-line CA certificate for the database', () => {
+    const config = loadConfig({
+      ...validEnv,
+      DATABASE_SSL: 'true',
+      DATABASE_SSL_CA: '-----BEGIN CERTIFICATE-----\\nMIIB\\n-----END CERTIFICATE-----',
+    });
+
+    expect(config.database.sslCa).toBe(
+      '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----',
     );
   });
 
