@@ -58,7 +58,7 @@ Todas las rutas viven bajo `/api/v1`. Los errores siguen RFC 9457 (`application/
 
 El token de acceso llega en el cuerpo de la respuesta y dura 15 minutos: guárdalo en memoria, no en `localStorage`. El refresh token viaja solo en la cookie `httpOnly` `ticbo_rt`; desde el navegador llama a la API con `credentials: 'include'`.
 
-La app web debe tener dos rutas para Google: `/auth/callback` (al llegar, llamar a `POST /auth/refresh` para obtener el token de acceso) y `/login?error=<code>` para los errores.
+La web (repo `Escala-Ticbo`) tiene las pantallas: `/iniciar-sesion`, `/crear-cuenta`, `/cuenta` y `/auth/callback`, a donde regresa Google (llama a `POST /auth/refresh` para obtener el token de acceso). Los errores de Google llegan como `/iniciar-sesion?error=<code>`.
 
 ## Estructura
 

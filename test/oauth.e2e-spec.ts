@@ -55,7 +55,7 @@ describe('OAuth (e2e)', () => {
 
     expect(response.statusCode).toBe(302);
     expect(response.headers.location).toBe(
-      'http://localhost:3000/login?error=oauth_state_mismatch',
+      'http://localhost:3000/iniciar-sesion?error=oauth_state_mismatch',
     );
     expect(response.cookies.find((candidate) => candidate.name === 'ticbo_rt')).toBeUndefined();
   });
@@ -71,7 +71,7 @@ describe('OAuth (e2e)', () => {
     });
 
     expect(response.headers.location).toBe(
-      'http://localhost:3000/login?error=oauth_state_mismatch',
+      'http://localhost:3000/iniciar-sesion?error=oauth_state_mismatch',
     );
   });
 
@@ -81,7 +81,9 @@ describe('OAuth (e2e)', () => {
       url: '/api/v1/auth/oauth/google/callback?error=access_denied',
     });
 
-    expect(response.headers.location).toBe('http://localhost:3000/login?error=oauth_denied');
+    expect(response.headers.location).toBe(
+      'http://localhost:3000/iniciar-sesion?error=oauth_denied',
+    );
   });
 
   it('answers 404 for providers that are not enabled', async () => {

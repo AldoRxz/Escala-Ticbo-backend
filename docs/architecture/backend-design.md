@@ -288,7 +288,7 @@ Todo el diseño es compatible con el modo transacción del pooler: el contexto d
 | `POST /api/v1/auth/refresh` | cookie | Rota el refresh token y entrega un token de acceso nuevo. |
 | `POST /api/v1/auth/logout` | cookie | Revoca la familia de la sesión y borra la cookie. `204`. |
 | `GET /api/v1/auth/oauth/:provider` | público | Redirige al proveedor (`google`). `404 oauth_provider_not_enabled` si no está configurado. |
-| `GET /api/v1/auth/oauth/:provider/callback` | público | Valida `state`, intercambia el código, inicia sesión y redirige a `WEB_APP_URL/auth/callback` (o a `/login?error=<code>`). |
+| `GET /api/v1/auth/oauth/:provider/callback` | público | Valida `state`, intercambia el código, inicia sesión y redirige a `WEB_APP_URL/auth/callback` (o a `/iniciar-sesion?error=<code>`). |
 | `GET /api/v1/me` | Bearer | Usuario, cuenta activa y todas sus cuentas. |
 | `GET /api/v1/health` | público | Readiness: `200` o `503` si PostgreSQL no responde. |
 | `GET /api/v1/health/live` | público | Liveness: el proceso responde. |

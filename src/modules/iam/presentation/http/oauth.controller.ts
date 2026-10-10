@@ -14,6 +14,10 @@ import { Public } from './auth.decorators.js';
 import { oauthCallbackQuerySchema } from './auth.schemas.js';
 import { clientContext } from './request-context.js';
 
+// Pages of the web app (Escala-Ticbo) the browser lands on after Google.
+const WEB_CALLBACK_PATH = '/auth/callback';
+const WEB_LOGIN_PATH = '/iniciar-sesion';
+
 /**
  * Browser-facing OAuth endpoints. Both answer with redirects: the callback sends
  * the user back to the web app with the refresh cookie set (never a token in the
@@ -89,7 +93,7 @@ export class OAuthController {
       });
       const session = await this.loginWithOAuth.execute(profile, clientContext(request));
       this.cookies.setRefreshToken(reply, session.refreshToken);
-      return `${this.webAppUrl}/auth/callback`;
+      return `${this.webAppUrl}${WEB_CALLBACK_PATH}`;
     } catch (error) {
       if (error instanceof AppError) {
         this.logger.warn(`Sign-in with ${provider.name} failed: ${error.code}`);
@@ -104,7 +108,7 @@ export class OAuthController {
   }
 
   private failure(code: string): string {
-    const url = new URL('/login', this.webAppUrl);
+    const url = new URL(WEB_LOGIN_PATH, this.webAppUrl);
     url.searchParams.set('error', code);
     return url.toString();
   }
