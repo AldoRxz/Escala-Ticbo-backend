@@ -23,8 +23,9 @@ Estas son las tres decisiones de arranque que propuso el equipo de producto, tal
 
 - El identificador de tenant se llama `account_id` (la cuenta es el tenant: personal o de organización) y está en todas las tablas de datos de cliente.
 - **Refuerzo**: además de filtrar en el código, PostgreSQL aplica Row-Level Security. La API se conecta con un rol sin privilegios de dueño y cada transacción declara su tenant; si el código olvida un filtro, la base de datos no devuelve filas de otro cliente. Está probado en `test/tenant-isolation.e2e-spec.ts`.
-- **Pooling**: pool de `node-postgres` de 10 conexiones por instancia (configurable) y, en producción, el *pooler* del proveedor (PgBouncer en modo transacción) delante de la base. El contexto de tenant dura una sola transacción, así que es compatible con ese modo.
-- Timeouts de sentencia (10 s) y de transacción inactiva (15 s) para que una consulta lenta no tumbe una instancia pequeña.
+- **Proveedor**: Supabase, usado solo como PostgreSQL. Su API pública de datos queda cerrada (migración `0002`).
+- **Pooling**: como el cómputo corre en Lambda, cada instancia abre **una** conexión (`DATABASE_POOL_MAX=1`) contra el *transaction pooler* de Supabase (Supavisor), que es quien multiplexa. El pool del ORM solo no basta en serverless: cientos de instancias con 10 conexiones cada una agotarían la base. El contexto de tenant dura una sola transacción, así que es compatible con ese modo.
+- Timeouts de sentencia (10 s) y de transacción inactiva (15 s) en el rol de la API, para que una consulta lenta no tumbe una instancia pequeña.
 
 ## 3. Pipeline asíncrono para tickets
 
@@ -32,10 +33,12 @@ Estas son las tres decisiones de arranque que propuso el equipo de producto, tal
 
 **Estado: adoptada en el principio; cambia la herramienta de cola.**
 
-- **Se mantiene**: el webhook valida la firma de Meta, guarda lo mínimo, encola y responde `200` en milisegundos. Todo lo demás (descarga de la imagen, OCR, portal del comercio, validación ante el SAT, respuesta por WhatsApp) corre en workers.
+- **Se mantiene**: el webhook valida la firma de Meta, guarda lo mínimo, encola y responde `200` en milisegundos. Todo lo demás (descarga de la imagen, OCR, portal del comercio, validación ante el SAT, respuesta por WhatsApp) corre en funciones asíncronas.
 - **Precisión sobre el timbrado**: Ticbo no timbra ante un PAC. El CFDI lo emite el comercio cuando Ticbo llena su portal de facturación. Ese paso (abrir el portal con un navegador automatizado, llenar el formulario y esperar el correo con el XML) tarda de segundos a varios minutos, no de 3 a 15 segundos. Eso refuerza la necesidad de la cola.
-- **Cambio**: en lugar de BullMQ con Redis, la cola vive en el mismo PostgreSQL con **pg-boss**:
-  - Ahorra una instancia de Redis siempre encendida. BullMQ en Redis serverless cobra por comando y consume muchos.
-  - El ticket y su trabajo se guardan en la misma transacción: no puede quedar un ticket sin procesar ni un trabajo huérfano.
-  - Aguanta cientos de trabajos por segundo; el plan más grande son 2,000 facturas al mes.
-  - La cola está detrás de una interfaz: si algún día se superan unos 50 trabajos por segundo sostenidos, se cambia a BullMQ, SQS o Cloudflare Queues sin tocar la lógica de negocio.
+- **Cambio**: el backend corre en **AWS Lambda con pago por uso**, así que la cola es **Amazon SQS** en lugar de BullMQ con Redis:
+  - BullMQ necesita un Redis siempre encendido y procesos consultándolo todo el tiempo; en Redis serverless cobra por comando y consume muchos. Eso contradice pagar solo por uso.
+  - SQS invoca la función del siguiente paso solo cuando hay mensajes; sin tickets, no hay costo. Su nivel gratuito cubre un millón de solicitudes al mes.
+  - Reintentos y cola de mensajes muertos vienen incluidos; la concurrencia de cada paso se limita por cola (por ejemplo, pocos navegadores de portal a la vez).
+  - La cola está detrás de una interfaz: cambiarla no toca la lógica de negocio.
+
+El diseño completo de Lambda (arranque en frío, memoria, costos y despliegue) está en [backend-design.md §8](./backend-design.md#8-infraestructura-y-costos).
