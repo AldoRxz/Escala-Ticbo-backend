@@ -1,7 +1,8 @@
 # Ticbo · Backend
 
 API de Ticbo: facturación CFDI 4.0 de tickets de compra por WhatsApp.
-NestJS 12 sobre Fastify 5, TypeScript estricto (ESM), PostgreSQL 18 con Drizzle ORM y Zod.
+NestJS 12 sobre Fastify 5, TypeScript estricto (ESM), PostgreSQL con Drizzle ORM y Zod.
+Se despliega en **AWS Lambda** (pago por uso) con la base de datos en **Supabase**; en local corre como servidor HTTP.
 
 Diseño completo: [docs/architecture/backend-design.md](docs/architecture/backend-design.md).
 
@@ -29,14 +30,16 @@ npm run start:dev    # http://localhost:4000/api/v1/health
 | `npm run typecheck` / `npm run lint` | TypeScript sin emitir / oxlint con reglas de tipos |
 | `npm run db:generate` | Genera una migración SQL a partir de los cambios en el esquema |
 | `npm run db:studio` | Explorador de la base de datos (Drizzle Studio) |
-
-Para probar la imagen de producción con la base local: `docker compose --profile app up --build`.
+| `npm run build:lambda` | Paquete para AWS Lambda en `dist-lambda/api` (arm64; `-- --arch=x64` para probar en local) |
+| `npm run setup:env` | Crea `.env` con secretos locales aleatorios |
 
 ## Variables de entorno
 
 Todas están documentadas en [.env.example](.env.example) y se validan al arrancar: si alguna falta o es inválida, el proceso no inicia y lista cada problema. No hay credenciales en el código.
 
 - `DATABASE_URL` usa el rol restringido `ticbo_app` (le aplica Row-Level Security); `DATABASE_MIGRATION_URL`, el rol dueño, solo para migraciones.
+- Con **Supabase**: `DATABASE_URL` apunta al *transaction pooler* (puerto 6543, usuario `ticbo_app.<project-ref>`), `DATABASE_MIGRATION_URL` al *session pooler* (puerto 5432, usuario `postgres.<project-ref>`), `DATABASE_SSL=true` con el certificado de Supabase en `DATABASE_SSL_CA`, y `DATABASE_POOL_MAX=1` en Lambda. Desactiva la Data API en el panel de Supabase: la API de Ticbo no la usa.
+- `VAULT_KEYS` son las llaves maestras con las que se cifran los secretos de clientes; viven fuera de la base de datos.
 - `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` son opcionales. En Google Cloud, la URI de redirección autorizada es `{API_PUBLIC_URL}/api/v1/auth/oauth/google/callback`.
 
 ## API
@@ -61,24 +64,33 @@ La app web debe tener dos rutas para Google: `/auth/callback` (al llegar, llamar
 
 ```
 src/
-  main.ts, app.module.ts    arranque y composición
-  bootstrap/                configuración de Fastify (compartida con las pruebas e2e)
+  lambda.ts                 entrada en AWS Lambda (API Gateway HTTP API)
+  main.ts, app.module.ts    servidor HTTP local y composición
+  bootstrap/                configuración de Fastify y del handler de Lambda
   config/                   variables de entorno validadas con Zod
   shared/                   kernel compartido: errores, ids, base de datos, HTTP
     infrastructure/database/schema/   esquema de PostgreSQL (Drizzle)
   modules/
     iam/                    identidad y acceso (implementado)
+    vault/                  cifrado de secretos de clientes (implementado)
     health/                 probes de orquestación (implementado)
-    fiscal/ vault/ messaging/ receipts/ invoicing/ billing/   por implementar
-drizzle/                    migraciones SQL (incluye RLS y permisos)
-test/                       pruebas e2e
+    fiscal/ messaging/ receipts/ invoicing/ billing/   por implementar
+drizzle/                    migraciones SQL (incluye RLS, permisos y endurecimiento para Supabase)
+scripts/                    setup-env y build-lambda
+test/                       pruebas e2e, incluido el handler de Lambda
 docs/                       arquitectura y flujo del producto
 ```
 
 Cada módulo separa `domain/` (reglas puras), `application/` (casos de uso y puertos), `infrastructure/` (adaptadores) y `presentation/` (HTTP).
 
-## Despliegue
+## Despliegue en AWS Lambda
 
-1. `docker build --build-arg APP_VERSION=<sha> -t ticbo-api .`
-2. Migraciones como paso previo: `node dist/shared/infrastructure/database/migrate.js` con `DATABASE_MIGRATION_URL`.
-3. Desplegar con `NODE_ENV=production`, `API_PUBLIC_URL` en https y `TRUST_PROXY=true` detrás de Cloudflare. El orquestador usa `/api/v1/health` (readiness) y `/api/v1/health/live` (liveness).
+1. Migraciones contra Supabase: `npm run db:migrate` con `DATABASE_MIGRATION_URL`.
+2. `npm run build:lambda` genera `dist-lambda/api` con el handler `index.handler` (Node.js 24, arm64).
+3. La función va detrás de una API Gateway **HTTP API**, fuera de una VPC, con 512 MB y 10 s de timeout. Variables: `NODE_ENV=production`, `API_PUBLIC_URL` en https, `DATABASE_POOL_MAX=1` y `LOG_LEVEL=warn`.
+
+La plantilla de infraestructura (AWS SAM) está pendiente; el detalle está en [backend-design.md §8–9](docs/architecture/backend-design.md#8-infraestructura-y-costos).
+
+Para probar el paquete como corre en AWS: `npm run build:lambda -- --arch=x64` y montar `dist-lambda/api` en la imagen `public.ecr.aws/lambda/nodejs:24`, que trae el emulador de Lambda.
+
+El `Dockerfile` (`docker compose --profile app up --build`) corre la misma API como contenedor, como alternativa a Lambda.
