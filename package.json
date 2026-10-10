@@ -28,6 +28,7 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@fastify/aws-lambda": "^6.4.2",
     "@fastify/cookie": "^11.1.2",
     "@fastify/helmet": "^13.1.1",
     "@nestjs/common": "^12.1.2",
@@ -46,10 +47,12 @@
   "devDependencies": {
     "@nestjs/cli": "^12.0.8",
     "@nestjs/schematics": "^12.0.0",
+    "@types/aws-lambda": "^8.10.164",
     "@types/node": "^24.19.1",
     "@types/pg": "^8.23.1",
     "@vitest/coverage-v8": "^5.0.3",
     "drizzle-kit": "^0.31.11",
+    "esbuild": "^0.28.2",
     "oxlint": "^1.86.0",
     "oxlint-tsgolint": "^7.0.2003",
     "prettier": "^3.9.9",
