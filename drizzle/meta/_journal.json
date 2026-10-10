@@ -15,6 +15,13 @@
       "when": 1791179396190,
       "tag": "0001_tenant_isolation",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791673611938,
+      "tag": "0002_managed_postgres_hardening",
+      "breakpoints": true
     }
   ]
 }

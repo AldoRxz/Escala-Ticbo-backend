@@ -9,15 +9,18 @@ import { TenantDatabase } from './tenant-database.js';
 
 function createPool(config: AppConfig): pg.Pool {
   const logger = new Logger('Database');
+  const { ssl, sslCa } = config.database;
   const pool = new pg.Pool({
+    // Keep `sslmode` out of the URL: node-postgres lets it override the `ssl` option below.
     connectionString: config.database.url,
-    // Keep this small: a pooler (PgBouncer / provider pooler) multiplexes instances.
+    // Keep this small: a pooler (Supavisor / PgBouncer) multiplexes the instances.
+    // On Lambda, 1 is enough: an instance serves one request at a time.
     max: config.database.poolMax,
-    ssl: config.database.ssl ? { rejectUnauthorized: true } : undefined,
+    ssl: ssl ? { rejectUnauthorized: true, ...(sslCa ? { ca: sslCa } : {}) } : undefined,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
-    statement_timeout: 10_000,
-    idle_in_transaction_session_timeout: 15_000,
+    // statement_timeout and idle_in_transaction_session_timeout are set on the
+    // ticbo_app role (migration 0002): poolers reject them as startup parameters.
     application_name: 'ticbo-api',
   });
   // Idle clients can lose their connection (failover, network blips). Without a
