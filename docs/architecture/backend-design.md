@@ -603,11 +603,14 @@ npm run build:lambda     # paquete para Lambda en dist-lambda/api (handler index
 
 Para probar el paquete exactamente como corre en AWS: `npm run build:lambda -- --arch=x64` y levantar `dist-lambda/api` con la imagen `public.ecr.aws/lambda/nodejs:24`, que incluye el emulador de Lambda.
 
-**Despliegue a AWS** (pendiente: plantilla de infraestructura con AWS SAM):
+**Despliegue a AWS** (GitHub Actions, `.github/workflows/deploy.yml`):
 
-1. CI ejecuta pruebas, `npm run db:migrate` contra Supabase y `npm run build:lambda`.
-2. SAM publica la función `api` (arm64, 512 MB, 10 s), la HTTP API con dominio `api.ticbo.com`, las colas SQS con sus DLQ y los permisos mínimos.
-3. Las variables sensibles se leen de SSM Parameter Store en el despliegue; nunca se escriben en la plantilla.
+1. Cada push a `main` corre las pruebas; si pasan, el job de despliegue entra a la cuenta `ticbo` por OIDC (sin llaves).
+2. Lee los secretos de SSM Parameter Store (`/ticbo/prod/*`), aplica las migraciones en Supabase y empaqueta la Lambda.
+3. CloudFormation (plantilla SAM `infra/template.yaml`, stack `ticbo-app-prod`) publica la función (arm64, 512 MB, 10 s) y la HTTP API, con el rol de ejecución y el permissions boundary de `infra/bootstrap.yaml`.
+4. Un smoke test llama a `/api/v1/health`.
+
+Controles de seguridad y pendientes: [seguridad.md](./seguridad.md).
 
 Las migraciones deben ser compatibles hacia atrás (expandir y luego contraer), para que la versión anterior de las funciones siga funcionando mientras se publica la nueva.
 

@@ -83,13 +83,24 @@ docs/                       arquitectura y flujo del producto
 
 Cada módulo separa `domain/` (reglas puras), `application/` (casos de uso y puertos), `infrastructure/` (adaptadores) y `presentation/` (HTTP).
 
-## Despliegue en AWS Lambda
+## Despliegue (automático)
 
-1. Migraciones contra Supabase: `npm run db:migrate` con `DATABASE_MIGRATION_URL`.
-2. `npm run build:lambda` genera `dist-lambda/api` con el handler `index.handler` (Node.js 24, arm64).
-3. La función va detrás de una API Gateway **HTTP API**, fuera de una VPC, con 512 MB y 10 s de timeout. Variables: `NODE_ENV=production`, `API_PUBLIC_URL` en https, `DATABASE_POOL_MAX=1` y `LOG_LEVEL=warn`.
+Cada push a `main` que toque código, migraciones o infraestructura corre `.github/workflows/deploy.yml`:
 
-La plantilla de infraestructura (AWS SAM) está pendiente; el detalle está en [backend-design.md §8–9](docs/architecture/backend-design.md#8-infraestructura-y-costos).
+1. **Pruebas**: auditoría de dependencias, typecheck, lint, unitarias y e2e contra un Postgres temporal. Si algo falla, no se despliega. Los PRs corren solo esta parte.
+2. **Despliegue** en la cuenta `ticbo` (us-west-2), con OIDC y sin llaves guardadas: lee los secretos de SSM (`/ticbo/prod/*`), aplica las migraciones en Supabase, empaqueta la Lambda (arm64) y actualiza el stack `ticbo-app-prod` (`infra/template.yaml`).
+3. **Smoke test**: `GET /api/v1/health` debe responder 200.
+
+Otros workflows: `backup.yml` hace un `pg_dump` diario a S3 y Dependabot propone actualizaciones cada semana.
+
+La base de la cuenta (rol de despliegue, permissions boundary, buckets) está en `infra/bootstrap.yaml`; se aplica a mano solo cuando ese archivo cambia:
+
+```bash
+aws cloudformation deploy --template-file infra/bootstrap.yaml --stack-name ticbo-bootstrap \
+  --capabilities CAPABILITY_NAMED_IAM --profile ticbo
+```
+
+Seguridad y datos: [docs/architecture/seguridad.md](docs/architecture/seguridad.md).
 
 Para probar el paquete como corre en AWS: `npm run build:lambda -- --arch=x64` y montar `dist-lambda/api` en la imagen `public.ecr.aws/lambda/nodejs:24`, que trae el emulador de Lambda.
 
