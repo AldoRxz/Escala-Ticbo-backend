@@ -265,6 +265,11 @@ Resources:
                 Effect: Allow
                 Action: s3:GetObject
                 Resource: !Sub '${ArtifactsBucket.Arn}/*'
+              # With --role-arn, CloudFormation expands the SAM transform as this role.
+              - Sid: ServerlessTransform
+                Effect: Allow
+                Action: cloudformation:CreateChangeSet
+                Resource: !Sub 'arn:aws:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31'
 
   # Assumed by the deploy workflow on pushes to the deploy branch only.
   GitHubDeployRole:
