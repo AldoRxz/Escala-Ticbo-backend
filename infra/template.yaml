@@ -1,0 +1,115 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  Ticbo API on AWS Lambda behind an API Gateway HTTP API. Pay per use: nothing
+  runs while there is no traffic. Deployed by .github/workflows/deploy.yml.
+
+Globals:
+  Function:
+    # Every role this stack creates is capped by the boundary from infra/bootstrap.yaml.
+    PermissionsBoundary: !Sub 'arn:aws:iam::${AWS::AccountId}:policy/ticbo-app-workload-boundary'
+
+Parameters:
+  AppVersion:
+    Type: String
+    Default: dev
+  ApiPublicUrl:
+    Type: String
+    Default: https://api.ticbo.com
+    Description: Public https URL of this API (cookie scope and OAuth redirect URI).
+  WebAppUrl:
+    Type: String
+    Default: https://ticbo.com
+  CorsOrigins:
+    Type: String
+    Default: https://ticbo.com
+    Description: Comma-separated origins allowed by CORS.
+  LogLevel:
+    Type: String
+    Default: warn
+    AllowedValues: [fatal, error, warn, info, debug, trace, silent]
+  # Secrets come from SSM Parameter Store (/ticbo/prod/*) through the pipeline.
+  DatabaseUrl:
+    Type: String
+    NoEcho: true
+  JwtAccessSecret:
+    Type: String
+    NoEcho: true
+  CookieSecret:
+    Type: String
+    NoEcho: true
+  VaultKeys:
+    Type: String
+    NoEcho: true
+  GoogleClientId:
+    Type: String
+    Default: ''
+  GoogleClientSecret:
+    Type: String
+    NoEcho: true
+    Default: ''
+
+Resources:
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ticbo/${AWS::StackName}/api'
+      RetentionInDays: 14
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Ticbo HTTP API (NestJS + Fastify)
+      CodeUri: ../dist-lambda/api
+      Handler: index.handler
+      Runtime: nodejs24.x
+      # Graviton: lower price per GB-second than x86.
+      Architectures: [arm64]
+      # CPU scales with memory; Argon2id (19 MiB per hash) needs the headroom.
+      MemorySize: 512
+      Timeout: 10
+      LoggingConfig:
+        LogGroup: !Ref ApiLogGroup
+        LogFormat: Text
+      Environment:
+        Variables:
+          NODE_ENV: production
+          NODE_OPTIONS: --enable-source-maps
+          APP_VERSION: !Ref AppVersion
+          LOG_LEVEL: !Ref LogLevel
+          API_PUBLIC_URL: !Ref ApiPublicUrl
+          WEB_APP_URL: !Ref WebAppUrl
+          CORS_ORIGINS: !Ref CorsOrigins
+          DATABASE_URL: !Ref DatabaseUrl
+          # One connection per instance: Supabase's transaction pooler multiplexes them.
+          DATABASE_POOL_MAX: '1'
+          DATABASE_SSL: 'true'
+          DATABASE_SSL_CA: certs/supabase-root-2021.crt
+          JWT_ACCESS_SECRET: !Ref JwtAccessSecret
+          COOKIE_SECRET: !Ref CookieSecret
+          VAULT_KEYS: !Ref VaultKeys
+          GOOGLE_CLIENT_ID: !Ref GoogleClientId
+          GOOGLE_CLIENT_SECRET: !Ref GoogleClientSecret
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /{proxy+}
+            Method: ANY
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Description: Ticbo public API
+      # Caps the bill if someone floods the API; raise when real traffic needs it.
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 50
+        ThrottlingRateLimit: 25
+
+Outputs:
+  ApiUrl:
+    Description: Base URL of the API (health check at /api/v1/health).
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+  FunctionName:
+    Value: !Ref ApiFunction

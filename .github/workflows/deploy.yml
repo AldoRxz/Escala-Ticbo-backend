@@ -1,0 +1,165 @@
+# Tests every change and, on pushes to main that touch the API, deploys it to
+# AWS Lambda (account ticbo, us-west-2). Documentation-only pushes do not deploy.
+name: Test and deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - 'drizzle/**'
+      - 'certs/**'
+      - 'infra/template.yaml'
+      - 'scripts/build-lambda.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'nest-cli.json'
+      - '.github/workflows/deploy.yml'
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: us-west-2
+  AWS_ACCOUNT_ID: '522400670512'
+  STACK_NAME: ticbo-app-prod
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      # Throwaway database for the e2e suite; the credentials exist only in this job.
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: ticbo
+          POSTGRES_USER: ticbo_owner
+          POSTGRES_PASSWORD: ci-owner
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ticbo_owner -d ticbo"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgres://ticbo_app:ci-app@localhost:5432/ticbo
+      DATABASE_MIGRATION_URL: postgres://ticbo_owner:ci-owner@localhost:5432/ticbo
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Create the API role and the e2e database
+        env:
+          PGPASSWORD: ci-owner
+        run: >-
+          psql -h localhost -U ticbo_owner -d ticbo -v ON_ERROR_STOP=1
+          -c "CREATE ROLE ticbo_app LOGIN PASSWORD 'ci-app'"
+          -c "CREATE DATABASE ticbo_test"
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run test:e2e
+
+  deploy:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/ticbo-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Load production settings from SSM Parameter Store
+        run: |
+          read_parameter() {
+            aws ssm get-parameter --name "/ticbo/prod/$1" --with-decryption \
+              --query Parameter.Value --output text 2>/dev/null || true
+          }
+          for name in DATABASE_URL DATABASE_MIGRATION_URL JWT_ACCESS_SECRET COOKIE_SECRET VAULT_KEYS \
+                      GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET; do
+            value="$(read_parameter "$name")"
+            case "$name" in GOOGLE_*) ;; *) [ -n "$value" ] || { echo "::error::Missing /ticbo/prod/$name"; exit 1; } ;; esac
+            [ -n "$value" ] && echo "::add-mask::$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done
+
+      - name: Apply database migrations (Supabase)
+        env:
+          DATABASE_SSL: 'true'
+          DATABASE_SSL_CA: certs/supabase-root-2021.crt
+        run: npm run db:migrate
+
+      - name: Build the Lambda package (arm64)
+        run: npm run build:lambda
+
+      - name: Deploy the stack
+        env:
+          API_PUBLIC_URL: ${{ vars.API_PUBLIC_URL || 'https://api.ticbo.com' }}
+          WEB_APP_URL: ${{ vars.WEB_APP_URL || 'https://ticbo.com' }}
+          CORS_ORIGINS: ${{ vars.CORS_ORIGINS || 'https://ticbo.com' }}
+        run: |
+          bucket="ticbo-deploy-artifacts-${AWS_ACCOUNT_ID}-${AWS_REGION}"
+          aws cloudformation package \
+            --template-file infra/template.yaml \
+            --s3-bucket "$bucket" --s3-prefix api \
+            --output-template-file packaged.yaml
+          aws cloudformation deploy \
+            --template-file packaged.yaml \
+            --stack-name "$STACK_NAME" \
+            --role-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:role/ticbo-cloudformation-exec" \
+            --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              "AppVersion=${GITHUB_SHA::7}" \
+              "ApiPublicUrl=$API_PUBLIC_URL" \
+              "WebAppUrl=$WEB_APP_URL" \
+              "CorsOrigins=$CORS_ORIGINS" \
+              "DatabaseUrl=$DATABASE_URL" \
+              "JwtAccessSecret=$JWT_ACCESS_SECRET" \
+              "CookieSecret=$COOKIE_SECRET" \
+              "VaultKeys=$VAULT_KEYS" \
+              "GoogleClientId=$GOOGLE_CLIENT_ID" \
+              "GoogleClientSecret=$GOOGLE_CLIENT_SECRET"
+
+      - name: Smoke test
+        run: |
+          url="$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)"
+          echo "API: $url"
+          curl --fail --silent --show-error --retry 3 --retry-delay 2 "$url/api/v1/health"
+          echo
+          echo "### Deployed \`${GITHUB_SHA::7}\` to $url" >> "$GITHUB_STEP_SUMMARY"
