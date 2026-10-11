@@ -1,0 +1,65 @@
+# Daily logical backup of the Supabase database into S3 (account ticbo,
+# bucket ticbo-db-backups-*, versioned, kept 35 days). The workflow's role can
+# only add backups: it cannot list, read or delete them.
+#
+# Restore (owner role, into an empty database that already has the ticbo_app role):
+#   aws s3 cp s3://ticbo-db-backups-522400670512-us-west-2/<key> ticbo.dump --profile ticbo
+#   pg_restore --no-owner --no-privileges --dbname "$DATABASE_MIGRATION_URL" ticbo.dump
+name: Database backup
+
+on:
+  schedule:
+    - cron: '17 9 * * *' # 03:17 in Mexico City
+  workflow_dispatch:
+
+concurrency:
+  group: database-backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: us-west-2
+  AWS_ACCOUNT_ID: '522400670512'
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/ticbo-github-backup
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Dump the database (TLS verified against the Supabase root CA)
+        run: |
+          DATABASE_URL="$(aws ssm get-parameter --name /ticbo/prod/DATABASE_MIGRATION_URL \
+            --with-decryption --query Parameter.Value --output text)"
+          echo "::add-mask::$DATABASE_URL"
+          # Passed by name (-e DATABASE_URL) so the URL never appears in a command line.
+          DATABASE_URL="$DATABASE_URL" docker run --rm \
+            -e DATABASE_URL \
+            -e PGSSLMODE=verify-full \
+            -e PGSSLROOTCERT=/certs/supabase-root-2021.crt \
+            -v "$PWD/certs:/certs:ro" \
+            -v "$RUNNER_TEMP:/out" \
+            postgres:17-alpine \
+            sh -c 'pg_dump --format=custom --no-owner --no-privileges --schema=public --schema=drizzle --file=/out/ticbo.dump "$DATABASE_URL"'
+
+      - name: Upload to S3
+        run: |
+          key="daily/$(date -u +%Y/%m/%Y-%m-%dT%H%MZ).dump"
+          bucket="ticbo-db-backups-${AWS_ACCOUNT_ID}-${AWS_REGION}"
+          aws s3 cp "$RUNNER_TEMP/ticbo.dump" "s3://$bucket/$key" --sse AES256 --only-show-errors
+          size="$(du -h "$RUNNER_TEMP/ticbo.dump" | cut -f1)"
+          echo "Backup stored at s3://$bucket/$key ($size)" >> "$GITHUB_STEP_SUMMARY"
+          rm -f "$RUNNER_TEMP/ticbo.dump"
