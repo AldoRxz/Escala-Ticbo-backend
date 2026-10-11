@@ -52,11 +52,11 @@ flowchart LR
 
   subgraph Cloudflare
     CF[DNS · TLS · WAF<br/>rate limit en el borde]
-    MAIL[Email Routing<br/>+ Email Worker]
     R2[(R2<br/>fotos · XML · PDF)]
   end
 
   META[WhatsApp Cloud API<br/>Meta]
+  MAIL[Buzón de facturas<br/>ticbomx@gmail.com]
 
   subgraph AWS
     GW[API Gateway<br/>HTTP API]
@@ -81,8 +81,8 @@ flowchart LR
   WORKER --> R2
   WORKER -- mensajes --> META
   WORKER -- navegador headless --> PORTALES
-  PORTALES -- correo con CFDI --> MAIL --> R2
-  MAIL -- aviso --> GW
+  PORTALES -- correo con CFDI --> MAIL
+  WORKER -- IMAP: lee · SMTP: solicita --> MAIL
   WORKER --> SAT
 ```
 
@@ -425,7 +425,7 @@ sequenceDiagram
   participant Q as Cola (SQS)
   participant W as Lambda worker
   participant P as Portal del comercio
-  participant E as Email Worker
+  participant E as Buzón (Gmail)
   U->>M: foto del ticket
   M->>API: POST webhook
   API->>API: firma HMAC · canal · remitente · idempotencia
@@ -435,8 +435,9 @@ sequenceDiagram
   W->>W: guarda en R2 · OCR → comercio, folio, total, fecha
   W->>U: "Recibí tu ticket de Starbucks por $185.00, lo facturo a ABC010101XYZ"
   W->>P: navegador headless llena el portal con ticket + datos fiscales
-  P->>E: correo con XML y PDF al buzón del RFC
-  E->>API: aviso (archivos ya en R2)
+  P->>E: correo con XML y PDF a ticbomx+clave@gmail.com
+  W->>E: revisa el buzón (cada 5 min)
+  W->>W: guarda XML y PDF en R2 · los asocia al ticket
   W->>W: valida XML · estado en el SAT · emisor en lista 69-B
   W->>U: documentos XML y PDF
 ```
@@ -446,8 +447,10 @@ sequenceDiagram
 | `receipt.ingest` | Descarga la imagen de Meta, la guarda en R2, crea `receipts` (idempotente por `source_message_id`) | 5, backoff exponencial |
 | `receipt.extract` | OCR o visión → comercio, RFC emisor, folio, fecha, total, sucursal; confianza por campo | 3 |
 | `receipt.match` | Busca el comercio en `merchants`; elige RFC receptor (remitente → perfil por defecto; si hay varios, pregunta en el chat) | — |
-| `invoice.request` | Ejecuta el adaptador del portal (`merchants.adapter_key`) con los datos del ticket y del perfil fiscal | 3, luego `needs_review` |
-| `invoice.collect` | Asocia el correo entrante (o la descarga del portal) con el ticket; guarda XML/PDF en R2 | espera hasta 24 h |
+| `invoice.request` | Pide la factura por el canal del comercio: el adaptador del portal (`merchants.adapter_key`) o un correo de solicitud (ver *Buzón de facturas*) | 3, luego `needs_review` |
+| `mailbox.poll` | Cada 5 minutos (EventBridge Scheduler) lee los correos nuevos del buzón, guarda XML/PDF en R2 y encola `invoice.collect` | el siguiente ciclo |
+| `invoice.collect` | Asocia el CFDI recibido (por correo o descargado del portal) con su ticket | espera hasta 24 h |
+| `invoice.follow_up` | Recordatorio a los comercios que se piden por correo y no han contestado | 2 recordatorios, luego `needs_review` |
 | `invoice.validate` | Valida el XML (UUID, receptor correcto, totales), consulta el estado en el SAT y la lista 69-B del emisor | 5 |
 | `notify.send` | Envía mensajes y documentos por WhatsApp | 5 |
 
@@ -468,10 +471,57 @@ La cola queda detrás de un puerto (`JobQueue`), así que el código de negocio 
 
 - Un **adaptador por portal** (`invoicing/infrastructure/portals/<comercio>.adapter.ts`) implementa el puerto `MerchantPortal`: recibe los datos del ticket y del perfil fiscal y regresa "solicitado", "ya facturado", "fuera de plazo" o "requiere revisión".
 - Corre con **Playwright** y un Chromium para Lambda (`@sparticuz/chromium`) en su propia función: ~1.5 GB de memoria y hasta 5 minutos de timeout, cobrada solo mientras llena un portal. Alternativa también por uso: Cloudflare Browser Rendering.
-- El correo que se captura en el portal es el **buzón del perfil fiscal** (`fiscal_profiles.invoice_email`), así el CFDI llega a Ticbo por Cloudflare Email Routing, que es gratuito, y un Email Worker lo deja en R2.
+- El correo que se captura en el portal es el **alias del perfil fiscal** (`fiscal_profiles.invoice_email`, ver *Buzón de facturas*), así el CFDI le llega a Ticbo y no al cliente.
 - Los portales cambian sin aviso: cada adaptador tiene una prueba de humo diaria y el comercio pasa a `degraded` si falla, para avisar al usuario en vez de reintentar a ciegas.
 - Los CAPTCHA y los casos raros pasan a `needs_review` (cola humana en el panel), nunca a reintentos infinitos.
 - `merchants.invoice_window_days` evita intentar tickets vencidos (muchos portales solo facturan dentro del mes de compra).
+
+### Buzón de facturas (correo)
+
+Ticbo tiene un buzón propio para tres cosas: recibir los CFDI que mandan los comercios, pedir facturas por correo a los comercios que no tienen portal y dar seguimiento a esas solicitudes. Mientras no haya dominio, el buzón es **`ticbomx@gmail.com`**.
+
+**Un alias por perfil fiscal.** Gmail entrega en el mismo buzón cualquier dirección con `+`: `ticbomx+k7m3p9@gmail.com` llega a `ticbomx@gmail.com`. Cada perfil fiscal recibe un alias con una clave aleatoria (no el RFC: no hace falta exponerlo ni volverlo adivinable). Ese alias se guarda en `fiscal_profiles.invoice_email` y es lo que se captura en los portales. Cuando llega un correo, la dirección de destino dice a qué perfil pertenece.
+
+**El XML manda, no la dirección.** Algunos portales rechazan el `+`; en esos se captura `ticbomx@gmail.com` sin alias. Por eso la asociación final se hace con el contenido del CFDI:
+
+- El RFC del receptor identifica los perfiles fiscales posibles.
+- El RFC del emisor, el total y la fecha identifican el ticket en `awaiting_cfdi` que corresponde.
+- Si hay más de un candidato o ninguno, el correo pasa a `needs_review`.
+
+**Comercios sin portal.** Algunos comercios facturan solo por correo. Para ellos, `merchants` tendrá el canal de solicitud (`request_channel`: `portal` o `email`) y el correo de facturación (`request_email`). Ticbo envía desde el buzón un correo con la foto del ticket y los datos fiscales:
+
+- El asunto lleva una referencia única: `Solicitud de factura · Ticket 12345 · Ref TB-K7M3P9`.
+- El `Reply-To` es un alias por solicitud (`ticbomx+r-k7m3p9@gmail.com`) y se guarda el `Message-ID` enviado. La respuesta se asocia por `In-Reply-To`/`References`, por el alias o por la referencia del asunto, en ese orden.
+- Cada envío queda en una tabla de solicitudes del plano de datos (con `account_id` y RLS): ticket, canal, `message_id`, fecha de envío, recordatorios enviados y estado.
+- **Seguimiento**:
+  - Sin respuesta en 48 horas hábiles, se manda un recordatorio en el mismo hilo.
+  - Después de dos recordatorios, la solicitud pasa a `needs_review` y se avisa al usuario.
+  - Si el comercio responde sin archivos (pide un dato o dice que ya facturó), también pasa a `needs_review`, con el correo visible en el panel.
+
+**Cómo se conecta hoy.** El buzón se lee por IMAP y se envía por SMTP, con una *contraseña de aplicación* de Google, que requiere la verificación en dos pasos de la cuenta:
+
+- `mailbox.poll` corre cada 5 minutos:
+  - busca los correos sin procesar;
+  - guarda los adjuntos XML y PDF en R2;
+  - los marca con la etiqueta `ticbo/procesado` y los archiva.
+
+  Ningún correo se borra antes de que su CFDI esté guardado.
+- **Se descartó la Gmail API**: leer el buzón requiere permisos *restringidos* de Google. En producción esos permisos exigen verificar la app y pasar una auditoría de seguridad anual, y en modo de prueba los tokens caducan cada 7 días.
+- **Límites de Gmail**: unos 500 correos enviados por día y 15 GB de almacenamiento. Alcanza para la etapa inicial, porque los adjuntos se archivan en R2.
+- **Credenciales**: en SSM, `/ticbo/prod/INVOICE_MAILBOX_USER` y `/ticbo/prod/INVOICE_MAILBOX_PASSWORD` (`SecureString`). Solo la función del buzón las lee.
+
+**Cuando haya dominio**, el buzón se cambia sin tocar los casos de uso, porque está detrás del puerto `InvoiceMailbox` (leer correos nuevos, enviar, etiquetar):
+
+- La entrada pasa a Cloudflare Email Routing con un Email Worker. Es gratis, no necesita sondeo y da un correo por perfil, como `abc010101xyz@facturas.ticbo.com`.
+- El envío pasa a Amazon SES.
+- Los alias de Gmail ya registrados en portales se siguen leyendo hasta que cada perfil se actualice.
+
+**Seguridad.** Todo lo que llega al buzón es entrada no confiable:
+
+- Solo se procesan adjuntos XML y PDF, con límite de tamaño. El XML se lee con un parser sin entidades externas (XXE) y se valida contra el esquema del CFDI 4.0.
+- Un CFDI falso enviado por cualquiera no pasa: antes de entregarlo se verifican el sello del timbre y el estado del folio fiscal ante el SAT (`invoice.validate`).
+- Si el comercio manda un enlace de descarga en lugar de adjuntos, el enlace solo se abre si su dominio coincide con el del portal registrado del comercio.
+- El buzón concentra datos fiscales de todos los clientes. Por eso lleva verificación en dos pasos obligatoria y contraseña única, y la cuenta no se usa para nada más.
 
 ### Reglas de WhatsApp que afectan el costo
 
@@ -536,7 +586,7 @@ Nada queda encendido esperando tráfico. Cada pieza cobra por petición, por mil
 | Tareas periódicas | EventBridge Scheduler | Por invocación; nivel gratuito amplio |
 | Base de datos | Supabase PostgreSQL (plan Pro para producción: el gratuito se pausa por inactividad) | Cuota mensual fija: es el único costo fijo relevante |
 | Archivos | Cloudflare R2 | Por GB almacenado; **sin cargos de salida** |
-| Correo entrante | Cloudflare Email Routing + Email Worker | Gratis |
+| Correo (CFDI entrantes y solicitudes) | Gmail `ticbomx@gmail.com` por IMAP/SMTP mientras no haya dominio; después, Cloudflare Email Routing (entrada) y Amazon SES (salida) | Gratis (SES: centavos por cada mil correos) |
 | Secretos de clientes | AWS KMS (una llave, al desplegar) | ~1 USD al mes + por cada 10,000 operaciones |
 | Configuración de la plataforma | SSM Parameter Store (nivel estándar) | Gratis |
 | Logs | CloudWatch Logs, retención de 14 días | Por GB ingerido |
@@ -635,6 +685,7 @@ Las migraciones deben ser compatibles hacia atrás (expandir y luego contraer), 
 | 11 | AWS Lambda + API Gateway HTTP API | Contenedores (Fly.io, ECS Fargate), VM | Pago por uso real; sin servidores que administrar; escala a cero |
 | 12 | Supabase solo como PostgreSQL | Supabase Auth/Data API; RDS desde el día 1 | Postgres administrado con pooler para serverless a costo fijo bajo; la Data API queda cerrada |
 | 13 | Cifrado de sobre propio | Supabase Vault | La llave maestra vive fuera de la base: una fuga de la base no expone secretos; portable a KMS |
+| 14 | Buzón en Gmail (`ticbomx@gmail.com`) con alias `+` por perfil, por IMAP/SMTP, mientras no haya dominio | Gmail API; esperar al dominio para Email Routing | Funciona hoy sin costo; la Gmail API exige verificación y auditoría por usar permisos restringidos. Queda detrás del puerto `InvoiceMailbox` |
 
 ### Preguntas abiertas
 
