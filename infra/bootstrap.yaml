@@ -9,8 +9,11 @@ Description: >-
 Parameters:
   GitHubRepository:
     Type: String
-    Default: AldoRxz/Escala-Ticbo-backend
-    Description: owner/name of the repository allowed to deploy.
+    # Immutable subject format (owner@ownerId/name@repoId): a repository created
+    # later under the same name cannot impersonate this one. See
+    # gh api repos/<owner>/<repo>/actions/oidc/customization/sub
+    Default: AldoRxz@102345294/Escala-Ticbo-backend@1404935718
+    Description: OIDC subject prefix of the repository allowed to deploy.
   DeployBranch:
     Type: String
     Default: main
