@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AppError, type ErrorCategory } from '../../domain/app-error.js';
+import { describeError } from '../logging/describe-error.js';
 import { RequestValidationError, type ValidationIssue } from './zod-validation.pipe.js';
 
 /** RFC 9457 problem details, plus a stable `code` clients can branch on. */
@@ -56,7 +57,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     if (problem.status >= 500) {
       this.logger.error(
         `${request.method} ${path} failed (request ${String(request.id)})`,
-        describeWithCauses(exception),
+        describeError(exception),
       );
     }
     if (problem.status === 401) {
@@ -93,27 +94,6 @@ export class ProblemDetailsFilter implements ExceptionFilter {
 
     return { ...base(500), code: 'internal_error', detail: 'An unexpected error occurred.' };
   }
-}
-
-/**
- * Stack plus every `cause`: Drizzle wraps driver errors, so without the chain a
- * log says "Failed query" and hides the real reason (connection refused,
- * timeout, constraint).
- */
-function describeWithCauses(exception: unknown): string {
-  const parts: string[] = [];
-  let current: unknown = exception;
-  for (let depth = 0; depth < 5 && current !== undefined && current !== null; depth++) {
-    const text =
-      current instanceof Error
-        ? (current.stack ?? current.message)
-        : typeof current === 'string'
-          ? current
-          : JSON.stringify(current);
-    parts.push(depth === 0 ? text : `Caused by: ${text}`);
-    current = current instanceof Error ? current.cause : undefined;
-  }
-  return parts.join('\n');
 }
 
 function base(status: number): Pick<ProblemDetails, 'type' | 'title' | 'status'> {

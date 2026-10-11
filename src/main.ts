@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { Logger } from '@nestjs/common';
 import { createApp } from './bootstrap/create-app.js';
 import { loadConfig } from './config/load-config.js';
+import { describeError } from './shared/infrastructure/logging/describe-error.js';
 
 // Local development reads .env; deployed environments inject real variables.
 if (process.env.NODE_ENV !== 'production' && existsSync('.env')) {
@@ -19,7 +20,7 @@ try {
 } catch (error) {
   Logger.error(
     error instanceof Error ? error.message : String(error),
-    error instanceof Error ? error.stack : undefined,
+    describeError(error),
     'Bootstrap',
   );
   process.exit(1);

@@ -4,6 +4,7 @@ import { Throttle } from '@nestjs/throttler';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AppConfig } from '../../../../config/app-config.js';
 import { AppError } from '../../../../shared/domain/app-error.js';
+import { describeError } from '../../../../shared/infrastructure/logging/describe-error.js';
 import {
   type OAuthProvider,
   OAuthProviderRegistry,
@@ -99,10 +100,7 @@ export class OAuthController {
         this.logger.warn(`Sign-in with ${provider.name} failed: ${error.code}`);
         return this.failure(error.code);
       }
-      this.logger.error(
-        `Sign-in with ${provider.name} failed`,
-        error instanceof Error ? error.stack : String(error),
-      );
+      this.logger.error(`Sign-in with ${provider.name} failed`, describeError(error));
       return this.failure('oauth_failed');
     }
   }
