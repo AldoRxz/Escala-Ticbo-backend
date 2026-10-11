@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { z } from 'zod';
 import { API_BASE_PATH } from '../shared/infrastructure/http/api-path.js';
 import type { AppConfig } from './app-config.js';
@@ -57,8 +59,9 @@ const envSchema = z
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
     DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
     DATABASE_SSL: booleanString.default(false),
-    // PEM of the CA that signs the database certificate (Supabase uses its own CA).
-    // Literal "\n" sequences are accepted so it fits in a single env line.
+    // CA that signs the database certificate (Supabase uses its own root): a path
+    // to a PEM file (e.g. certs/supabase-root-2021.crt) or the PEM itself, with
+    // literal "\n" sequences accepted so it fits in one env line.
     DATABASE_SSL_CA: z.string().min(1).optional(),
     JWT_ACCESS_SECRET: secret,
     JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
@@ -90,6 +93,19 @@ const envSchema = z
       });
     }
   });
+
+function readCertificate(value: string): string {
+  if (value.includes('-----BEGIN CERTIFICATE-----')) {
+    return value.replace(/\\n/g, '\n');
+  }
+  try {
+    return readFileSync(resolve(value), 'utf8');
+  } catch {
+    throw new Error(
+      `Invalid environment configuration:\n  - DATABASE_SSL_CA: cannot read ${value}`,
+    );
+  }
+}
 
 /**
  * Parses and validates environment variables. Fails fast with every problem
@@ -125,7 +141,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
       url: env.DATABASE_URL,
       poolMax: env.DATABASE_POOL_MAX,
       ssl: env.DATABASE_SSL,
-      sslCa: env.DATABASE_SSL_CA?.replace(/\\n/g, '\n') ?? null,
+      sslCa: env.DATABASE_SSL_CA ? readCertificate(env.DATABASE_SSL_CA) : null,
     },
     auth: {
       accessToken: {

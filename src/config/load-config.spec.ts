@@ -75,7 +75,10 @@ describe('loadConfig', () => {
   it.each([
     ['a short key', `local-v1:${randomBytes(16).toString('base64')}`],
     ['a missing id', randomBytes(32).toString('base64')],
-    ['a repeated id', `k:${randomBytes(32).toString('base64')},k:${randomBytes(32).toString('base64')}`],
+    [
+      'a repeated id',
+      `k:${randomBytes(32).toString('base64')},k:${randomBytes(32).toString('base64')}`,
+    ],
   ])('rejects vault keys with %s', (_, value) => {
     expect(() => loadConfig({ ...validEnv, VAULT_KEYS: value })).toThrow(/VAULT_KEYS/);
   });
@@ -89,6 +92,19 @@ describe('loadConfig', () => {
 
     expect(config.database.sslCa).toBe(
       '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----',
+    );
+  });
+
+  it('reads the database CA from a file path', () => {
+    const config = loadConfig({
+      ...validEnv,
+      DATABASE_SSL: 'true',
+      DATABASE_SSL_CA: 'certs/supabase-root-2021.crt',
+    });
+
+    expect(config.database.sslCa).toContain('-----BEGIN CERTIFICATE-----');
+    expect(() => loadConfig({ ...validEnv, DATABASE_SSL_CA: 'certs/missing.crt' })).toThrow(
+      /DATABASE_SSL_CA/,
     );
   });
 
