@@ -35,6 +35,11 @@ export class OAuthProviderRegistry {
     this.providers = new Map(providers.map((provider) => [provider.name, provider]));
   }
 
+  /** Names of the providers configured in this deployment. */
+  names(): string[] {
+    return [...this.providers.keys()];
+  }
+
   /** @throws OAuthProviderNotEnabledError */
   get(name: string): OAuthProvider {
     const provider = this.providers.get(name);

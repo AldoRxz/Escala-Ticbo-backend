@@ -40,6 +40,12 @@ export class OAuthController {
     this.webAppUrl = config.http.webAppUrl;
   }
 
+  /** Providers enabled in this deployment, so the web app knows which buttons work. */
+  @Get()
+  list(): { providers: string[] } {
+    return { providers: this.providers.names() };
+  }
+
   @Get(':provider')
   start(@Param('provider') providerName: string, @Res() reply: FastifyReply): void {
     const provider = this.providers.get(providerName);

@@ -27,6 +27,13 @@ describe('OAuth (e2e)', () => {
     return { response, location, cookie };
   }
 
+  it('lists the enabled providers', async () => {
+    const response = await app.inject({ method: 'GET', url: '/api/v1/auth/oauth' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ providers: ['google'] });
+  });
+
   it('redirects to Google with PKCE and keeps state in a signed cookie', async () => {
     const { response, location, cookie } = await startGoogle();
 

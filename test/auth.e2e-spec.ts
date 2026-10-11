@@ -201,6 +201,12 @@ describe('Auth (e2e)', () => {
     expect(poisoned.statusCode).toBe(400);
   });
 
+  it('lists no OAuth providers when none is configured', async () => {
+    const response = await app.inject({ method: 'GET', url: '/api/v1/auth/oauth' });
+
+    expect(response.json()).toEqual({ providers: [] });
+  });
+
   it('refuses a refresh without cookie', async () => {
     const response = await app.inject({ method: 'POST', url: '/api/v1/auth/refresh' });
 
