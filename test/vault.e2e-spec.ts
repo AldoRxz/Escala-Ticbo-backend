@@ -46,7 +46,7 @@ describe('Secret vault (e2e)', () => {
     expect((await vault.reveal(accountA, secretId)).toString()).toBe(token);
   });
 
-  it("does not let another account read or delete a secret, even with its id", async () => {
+  it('does not let another account read or delete a secret, even with its id', async () => {
     const secretId = await vault.store(accountA, 'fiel_password', 'contraseña-de-la-efirma');
 
     await expect(vault.reveal(accountB, secretId)).rejects.toThrow(SecretNotFoundError);

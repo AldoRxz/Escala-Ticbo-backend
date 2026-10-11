@@ -65,11 +65,7 @@ export const receipts = pgTable(
   },
   (t) => [
     unique('receipts_id_account_key').on(t.id, t.accountId),
-    uniqueIndex('receipts_account_source_message_key').on(
-      t.accountId,
-      t.source,
-      t.sourceMessageId,
-    ),
+    uniqueIndex('receipts_account_source_message_key').on(t.accountId, t.source, t.sourceMessageId),
     index('receipts_account_created_idx').on(t.accountId, t.createdAt.desc()),
     index('receipts_account_status_idx').on(t.accountId, t.status),
     foreignKey({

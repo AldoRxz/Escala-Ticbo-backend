@@ -18,9 +18,10 @@ export class RequestValidationError extends AppError {
 }
 
 /** Validates and parses a request part (body, query, params) with a Zod schema. */
-export class ZodValidationPipe<TSchema extends z.ZodType>
-  implements PipeTransform<unknown, z.output<TSchema>>
-{
+export class ZodValidationPipe<TSchema extends z.ZodType> implements PipeTransform<
+  unknown,
+  z.output<TSchema>
+> {
   constructor(private readonly schema: TSchema) {}
 
   transform(value: unknown): z.output<TSchema> {

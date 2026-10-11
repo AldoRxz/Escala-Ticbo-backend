@@ -51,7 +51,10 @@ describe('RegisterUserUseCase', () => {
 
   it('enforces the password policy', async () => {
     await expect(
-      registerUser.execute({ email: 'ana@example.com', password: 'short', fullName: 'Ana' }, client),
+      registerUser.execute(
+        { email: 'ana@example.com', password: 'short', fullName: 'Ana' },
+        client,
+      ),
     ).rejects.toThrow(WeakPasswordError);
     expect(testbed.users.users.size).toBe(0);
   });

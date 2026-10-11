@@ -77,7 +77,9 @@ export class AuthCookies {
       return null;
     }
     try {
-      const decoded: unknown = JSON.parse(Buffer.from(unsigned.value, 'base64url').toString('utf8'));
+      const decoded: unknown = JSON.parse(
+        Buffer.from(unsigned.value, 'base64url').toString('utf8'),
+      );
       const parsed = oauthStateSchema.safeParse(decoded);
       return parsed.success ? parsed.data : null;
     } catch {

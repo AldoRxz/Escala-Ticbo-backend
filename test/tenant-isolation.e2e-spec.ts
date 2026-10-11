@@ -3,10 +3,7 @@ import { eq } from 'drizzle-orm';
 import type pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { newId } from '../src/shared/domain/id.js';
-import {
-  type Database,
-  DATABASE,
-} from '../src/shared/infrastructure/database/database.tokens.js';
+import { type Database, DATABASE } from '../src/shared/infrastructure/database/database.tokens.js';
 import { fiscalProfiles, receipts } from '../src/shared/infrastructure/database/schema/index.js';
 import { TenantDatabase } from '../src/shared/infrastructure/database/tenant-database.js';
 import { prepareDatabase, resetDatabase, startTestApp } from './support/e2e.js';

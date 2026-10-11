@@ -4,7 +4,11 @@ import { newId } from '../../../shared/domain/id.js';
 import type { Membership, User } from '../domain/user.js';
 import { InvalidRefreshTokenError } from './errors.js';
 import type { ClientContext } from './principal.js';
-import { AccessTokenService, type IssuedAccessToken, OpaqueTokenService } from './ports/security.js';
+import {
+  AccessTokenService,
+  type IssuedAccessToken,
+  OpaqueTokenService,
+} from './ports/security.js';
 import {
   type NewRefreshSession,
   type RefreshSession,

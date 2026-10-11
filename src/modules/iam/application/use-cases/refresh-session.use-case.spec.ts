@@ -25,7 +25,10 @@ describe('RefreshSessionUseCase', () => {
       testbed.users,
       testbed.hasher,
       testbed.sessionIssuer,
-    ).execute({ email: 'ana@example.com', password: 'correct horse battery', fullName: 'Ana' }, client);
+    ).execute(
+      { email: 'ana@example.com', password: 'correct horse battery', fullName: 'Ana' },
+      client,
+    );
   });
 
   it('rotates the refresh token within the same family', async () => {
@@ -72,9 +75,7 @@ describe('RefreshSessionUseCase', () => {
 
   it('rejects expired, unknown and missing tokens', async () => {
     await expect(refresh.execute(undefined, client)).rejects.toThrow(InvalidRefreshTokenError);
-    await expect(refresh.execute('never-issued', client)).rejects.toThrow(
-      InvalidRefreshTokenError,
-    );
+    await expect(refresh.execute('never-issued', client)).rejects.toThrow(InvalidRefreshTokenError);
 
     testbed.clock.advance(testSessionSettings.refreshTokenTtlMs);
     await expect(refresh.execute(signedIn.refreshToken.value, client)).rejects.toThrow(
@@ -83,11 +84,9 @@ describe('RefreshSessionUseCase', () => {
   });
 
   it('stops working after logout', async () => {
-    await new LogoutUseCase(
-      testbed.sessionRepository,
-      testbed.opaqueTokens,
-      testbed.clock,
-    ).execute(signedIn.refreshToken.value);
+    await new LogoutUseCase(testbed.sessionRepository, testbed.opaqueTokens, testbed.clock).execute(
+      signedIn.refreshToken.value,
+    );
 
     await expect(refresh.execute(signedIn.refreshToken.value, client)).rejects.toThrow(
       InvalidRefreshTokenError,

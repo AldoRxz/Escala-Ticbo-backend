@@ -1,13 +1,5 @@
 import { sql } from 'drizzle-orm';
-import {
-  integer,
-  jsonb,
-  pgEnum,
-  pgTable,
-  text,
-  uniqueIndex,
-  varchar,
-} from 'drizzle-orm/pg-core';
+import { integer, jsonb, pgEnum, pgTable, text, uniqueIndex, varchar } from 'drizzle-orm/pg-core';
 import { createdAt, primaryId, updatedAt } from './columns.js';
 
 // Global catalog shared by every tenant (no account_id): which invoicing portal
