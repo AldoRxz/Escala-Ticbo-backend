@@ -8,6 +8,7 @@ export type ErrorCategory =
   | 'forbidden'
   | 'not_found'
   | 'conflict'
+  | 'rate_limited'
   | 'unavailable';
 
 /** Base class for expected failures. Anything else is treated as a bug (500). */

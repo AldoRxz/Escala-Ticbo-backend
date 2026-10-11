@@ -7,6 +7,7 @@ import {
   OpaqueTokenService,
   PasswordHasher,
 } from './application/ports/security.js';
+import { LoginThrottleStore } from './application/ports/login-throttle.js';
 import { SessionRepository } from './application/ports/session.repository.js';
 import { UserRepository } from './application/ports/user.repository.js';
 import { SessionIssuer, SessionSettings } from './application/session-issuer.js';
@@ -17,6 +18,7 @@ import { LogoutUseCase } from './application/use-cases/logout.use-case.js';
 import { RefreshSessionUseCase } from './application/use-cases/refresh-session.use-case.js';
 import { RegisterUserUseCase } from './application/use-cases/register-user.use-case.js';
 import { GoogleOAuthProvider } from './infrastructure/oauth/google-oauth.provider.js';
+import { DrizzleLoginThrottleStore } from './infrastructure/persistence/drizzle-login-throttle.store.js';
 import { DrizzleSessionRepository } from './infrastructure/persistence/drizzle-session.repository.js';
 import { DrizzleUserRepository } from './infrastructure/persistence/drizzle-user.repository.js';
 import { Argon2PasswordHasher } from './infrastructure/security/argon2-password-hasher.js';
@@ -36,6 +38,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
     // Ports → adapters
     { provide: UserRepository, useClass: DrizzleUserRepository },
     { provide: SessionRepository, useClass: DrizzleSessionRepository },
+    { provide: LoginThrottleStore, useClass: DrizzleLoginThrottleStore },
     { provide: OpaqueTokenService, useClass: CryptoOpaqueTokenService },
     {
       provide: PasswordHasher,

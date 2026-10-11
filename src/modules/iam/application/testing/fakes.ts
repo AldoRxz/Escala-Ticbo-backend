@@ -4,6 +4,8 @@ import { EmailAlreadyRegisteredError } from '../../domain/errors.js';
 import type { OAuthProviderName } from '../../domain/oauth.js';
 import type { Membership, User } from '../../domain/user.js';
 import { InvalidAccessTokenError } from '../errors.js';
+import type { ThrottleState } from '../../domain/login-throttle.js';
+import type { LoginThrottleStore } from '../ports/login-throttle.js';
 import type { Principal } from '../principal.js';
 import type {
   AccessTokenService,
@@ -162,6 +164,23 @@ export class InMemorySessionRepository implements SessionRepository {
   }
 }
 
+export class InMemoryLoginThrottleStore implements LoginThrottleStore {
+  readonly states = new Map<string, ThrottleState>();
+
+  async get(email: string): Promise<ThrottleState | null> {
+    return this.states.get(email.trim().toLowerCase()) ?? null;
+  }
+
+  async update(email: string, next: (state: ThrottleState | null) => ThrottleState): Promise<void> {
+    const key = email.trim().toLowerCase();
+    this.states.set(key, next(this.states.get(key) ?? null));
+  }
+
+  async clear(email: string): Promise<void> {
+    this.states.delete(email.trim().toLowerCase());
+  }
+}
+
 export class FakePasswordHasher implements PasswordHasher {
   verifyCalls = 0;
   readonly outdatedHashes = new Set<string>();
@@ -226,7 +245,17 @@ export function createIamTestbed() {
     testSessionSettings,
     clock,
   );
-  return { clock, users, sessionRepository, hasher, accessTokens, opaqueTokens, sessionIssuer };
+  const throttle = new InMemoryLoginThrottleStore();
+  return {
+    clock,
+    users,
+    sessionRepository,
+    hasher,
+    accessTokens,
+    opaqueTokens,
+    sessionIssuer,
+    throttle,
+  };
 }
 
 export const client = { userAgent: 'vitest', ipAddress: '127.0.0.1' } as const;

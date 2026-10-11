@@ -29,8 +29,7 @@ function testDatabase(url: string): string {
 export const testDatabaseUrls = {
   app: process.env.TEST_DATABASE_URL ?? testDatabase(requiredEnv('DATABASE_URL')),
   owner:
-    process.env.TEST_DATABASE_MIGRATION_URL ??
-    testDatabase(requiredEnv('DATABASE_MIGRATION_URL')),
+    process.env.TEST_DATABASE_MIGRATION_URL ?? testDatabase(requiredEnv('DATABASE_MIGRATION_URL')),
 };
 
 export function testConfig(overrides: Record<string, string> = {}): AppConfig {
@@ -70,5 +69,5 @@ export async function prepareDatabase(): Promise<pg.Pool> {
 
 export async function resetDatabase(owner: pg.Pool): Promise<void> {
   // CASCADE reaches every table that references these roots.
-  await owner.query('TRUNCATE users, accounts, merchants CASCADE');
+  await owner.query('TRUNCATE users, accounts, merchants, auth_throttles CASCADE');
 }

@@ -9,6 +9,15 @@ export class InvalidCredentialsError extends AppError {
   }
 }
 
+export class TooManyLoginAttemptsError extends AppError {
+  override readonly code = 'too_many_login_attempts';
+  override readonly category = 'rate_limited';
+
+  constructor(lockMinutes: number) {
+    super(`Too many failed sign-in attempts. Try again in ${lockMinutes} minutes.`);
+  }
+}
+
 export class InvalidRefreshTokenError extends AppError {
   override readonly code = 'invalid_refresh_token';
   override readonly category = 'unauthenticated';
@@ -59,6 +68,9 @@ export class OAuthExchangeFailedError extends AppError {
   override readonly category = 'unavailable';
 
   constructor(reason: string, options?: ErrorOptions) {
-    super(`The sign-in provider could not be reached or answered unexpectedly (${reason}).`, options);
+    super(
+      `The sign-in provider could not be reached or answered unexpectedly (${reason}).`,
+      options,
+    );
   }
 }

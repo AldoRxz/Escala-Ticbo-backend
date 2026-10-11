@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   check,
   index,
+  integer,
   pgEnum,
   pgTable,
   primaryKey,
@@ -110,3 +111,16 @@ export const accountMembers = pgTable(
     index('account_members_user_id_idx').on(t.userId),
   ],
 );
+
+/**
+ * Failed sign-in attempts per email, shared by every API instance (Lambda keeps
+ * no state between instances). The key is a SHA-256 of the normalized email, so
+ * no address is stored, and unknown emails are throttled exactly like real ones.
+ */
+export const authThrottles = pgTable('auth_throttles', {
+  key: varchar('key', { length: 64 }).primaryKey(),
+  failures: integer('failures').notNull(),
+  windowStartedAt: timestamptz('window_started_at').notNull(),
+  lockedUntil: timestamptz('locked_until'),
+  updatedAt: timestamptz('updated_at').notNull().defaultNow(),
+});

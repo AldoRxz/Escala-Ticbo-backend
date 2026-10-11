@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { InvalidCredentialsError } from '../errors.js';
+import { LOGIN_THROTTLE } from '../../domain/login-throttle.js';
+import { InvalidCredentialsError, TooManyLoginAttemptsError } from '../errors.js';
 import { client, createIamTestbed } from '../testing/fakes.js';
 import { LoginWithPasswordUseCase } from './login-with-password.use-case.js';
 import { RegisterUserUseCase } from './register-user.use-case.js';
@@ -10,7 +11,13 @@ describe('LoginWithPasswordUseCase', () => {
 
   beforeEach(async () => {
     testbed = createIamTestbed();
-    login = new LoginWithPasswordUseCase(testbed.users, testbed.hasher, testbed.sessionIssuer);
+    login = new LoginWithPasswordUseCase(
+      testbed.users,
+      testbed.hasher,
+      testbed.sessionIssuer,
+      testbed.throttle,
+      testbed.clock,
+    );
     await new RegisterUserUseCase(testbed.users, testbed.hasher, testbed.sessionIssuer).execute(
       { email: 'ana@example.com', password: 'correct horse battery', fullName: 'Ana' },
       client,
@@ -66,5 +73,43 @@ describe('LoginWithPasswordUseCase', () => {
     await login.execute({ email: 'ana@example.com', password: 'correct horse battery' }, client);
 
     expect(updates).toEqual(['hashed:correct horse battery']);
+  });
+  async function failTimes(email: string, times: number) {
+    for (let attempt = 0; attempt < times; attempt++) {
+      await expect(login.execute({ email, password: 'not the password' }, client)).rejects.toThrow(
+        InvalidCredentialsError,
+      );
+    }
+  }
+
+  it('locks the email after repeated failures, even for the right password', async () => {
+    await failTimes('ana@example.com', LOGIN_THROTTLE.maxFailures);
+
+    await expect(
+      login.execute({ email: 'ana@example.com', password: 'correct horse battery' }, client),
+    ).rejects.toThrow(TooManyLoginAttemptsError);
+
+    testbed.clock.advance(LOGIN_THROTTLE.lockMs);
+    await expect(
+      login.execute({ email: 'ANA@example.com', password: 'correct horse battery' }, client),
+    ).resolves.toBeDefined();
+  });
+
+  it('locks unknown emails the same way, so a lock reveals nothing', async () => {
+    await failTimes('nobody@example.com', LOGIN_THROTTLE.maxFailures);
+
+    await expect(
+      login.execute({ email: 'nobody@example.com', password: 'anything at all' }, client),
+    ).rejects.toThrow(TooManyLoginAttemptsError);
+  });
+
+  it('forgets earlier failures after a successful sign-in', async () => {
+    await failTimes('ana@example.com', LOGIN_THROTTLE.maxFailures - 1);
+    await login.execute({ email: 'ana@example.com', password: 'correct horse battery' }, client);
+    await failTimes('ana@example.com', LOGIN_THROTTLE.maxFailures - 1);
+
+    await expect(
+      login.execute({ email: 'ana@example.com', password: 'correct horse battery' }, client),
+    ).resolves.toBeDefined();
   });
 });

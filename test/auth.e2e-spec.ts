@@ -55,7 +55,9 @@ describe('Auth (e2e)', () => {
       path: '/api/v1/auth',
     });
 
-    const { rows } = await owner.query<{ password_hash: string }>('select password_hash from users');
+    const { rows } = await owner.query<{ password_hash: string }>(
+      'select password_hash from users',
+    );
     expect(rows[0]?.password_hash).toMatch(/^\$argon2id\$/);
   });
 
@@ -95,6 +97,23 @@ describe('Auth (e2e)', () => {
     expect(unknown.json()).toEqual({ ...wrong.json(), requestId: unknown.json().requestId });
     expect(right.statusCode).toBe(200);
     expect(right.json().user.email).toBe('ana@example.com');
+  });
+
+  it('locks an email after repeated failed sign-ins, across instances', async () => {
+    await register();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      expect((await login({ email: ana.email, password: 'not the password' })).statusCode).toBe(
+        401,
+      );
+    }
+
+    const locked = await login({ email: ana.email, password: ana.password });
+
+    expect(locked.statusCode).toBe(429);
+    expect(locked.json().code).toBe('too_many_login_attempts');
+    const { rows } = await owner.query<{ key: string }>('select key from auth_throttles');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.key).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it('protects routes with the bearer token', async () => {

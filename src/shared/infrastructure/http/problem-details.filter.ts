@@ -29,6 +29,7 @@ const STATUS_BY_CATEGORY: Record<ErrorCategory, number> = {
   forbidden: 403,
   not_found: 404,
   conflict: 409,
+  rate_limited: 429,
   unavailable: 503,
 };
 
