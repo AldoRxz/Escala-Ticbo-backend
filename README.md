@@ -38,7 +38,7 @@ npm run start:dev    # http://localhost:4000/api/v1/health
 Todas están documentadas en [.env.example](.env.example) y se validan al arrancar: si alguna falta o es inválida, el proceso no inicia y lista cada problema. No hay credenciales en el código.
 
 - `DATABASE_URL` usa el rol restringido `ticbo_app` (le aplica Row-Level Security); `DATABASE_MIGRATION_URL`, el rol dueño, solo para migraciones.
-- Con **Supabase**: `DATABASE_URL` apunta al *transaction pooler* (puerto 6543, usuario `ticbo_app.<project-ref>`), `DATABASE_MIGRATION_URL` al *session pooler* (puerto 5432, usuario `postgres.<project-ref>`), `DATABASE_SSL=true` con el certificado de Supabase en `DATABASE_SSL_CA`, y `DATABASE_POOL_MAX=1` en Lambda. Desactiva la Data API en el panel de Supabase: la API de Ticbo no la usa.
+- Con **Supabase** (proyecto en us-west-2): copia `.env.supabase.example` a `.env.supabase` y llena las contraseñas; `npm run db:migrate:supabase` migra y `npm run start:supabase` levanta la API local contra Supabase. `DATABASE_URL` apunta al *transaction pooler* (puerto 6543, usuario `ticbo_app.<project-ref>`), `DATABASE_MIGRATION_URL` al *session pooler* (puerto 5432, usuario `postgres.<project-ref>`), `DATABASE_SSL=true` con el certificado de Supabase en `DATABASE_SSL_CA`, y `DATABASE_POOL_MAX=1` en Lambda. Desactiva la Data API en el panel de Supabase: la API de Ticbo no la usa.
 - `VAULT_KEYS` son las llaves maestras con las que se cifran los secretos de clientes; viven fuera de la base de datos.
 - `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` son opcionales. En Google Cloud, la URI de redirección autorizada es `{API_PUBLIC_URL}/api/v1/auth/oauth/google/callback`.
 

@@ -247,7 +247,9 @@ Conexiones:
 | API en Lambda (`DATABASE_URL`) | *Transaction pooler* (Supavisor, puerto 6543) | `ticbo_app.<project-ref>` |
 | Migraciones (`DATABASE_MIGRATION_URL`) | *Session pooler* (puerto 5432; la conexión directa es solo IPv6) | `postgres.<project-ref>` |
 
-SSL con verificación: `DATABASE_SSL=true` y el certificado raíz de Supabase en `DATABASE_SSL_CA` (sin `sslmode` en la URL, porque node-postgres lo deja sobrescribir la verificación). El rol `ticbo_app` se crea una vez con `CREATE ROLE ticbo_app LOGIN PASSWORD '…'` antes de la primera migración.
+SSL con verificación: `DATABASE_SSL=true` y `DATABASE_SSL_CA=certs/supabase-root-2021.crt`, la raíz propia de Supabase (vigente hasta 2031; los CA del sistema no la reconocen). Sin `sslmode` en la URL, porque node-postgres lo deja sobrescribir la verificación. El rol `ticbo_app` se crea una vez con `CREATE ROLE ticbo_app LOGIN PASSWORD '…'` antes de la primera migración.
+
+Proyecto actual: `ugeephdquoodxhecekof`, Postgres 17 en **us-west-2** (pooler `aws-1-us-west-2.pooler.supabase.com`). Rol `ticbo_app` creado y las tres migraciones aplicadas; verificado: 14 tablas con RLS, cero permisos para `anon`/`authenticated`. `.env.supabase` (fuera del repo) guarda las dos URLs; `.env.supabase.example` muestra el formato.
 
 Todo el diseño es compatible con el modo transacción del pooler: el contexto de tenant (`set_config(..., true)`) vive dentro de la transacción y node-postgres usa sentencias preparadas sin nombre. Cambiar a RDS o Aurora Serverless más adelante es cambiar las URLs.
 
@@ -562,7 +564,7 @@ Una función que no ha recibido tráfico tarda en arrancar. AWS cobra también e
 - **Memoria de la función `api`: 512 MB.** En Lambda la CPU es proporcional a la memoria. Argon2id usa 19 MiB por hash y tarda menos con más CPU; si el login se siente lento, subir a 768 o 1024 MB puede costar lo mismo, porque cada petición dura menos.
 - **Pool de conexiones: 1 por instancia** (`DATABASE_POOL_MAX=1`). Una instancia de Lambda atiende una petición a la vez; la multiplexación la hace el *transaction pooler* de Supabase.
 - **Timeouts**: `statement_timeout` de 10 s e `idle_in_transaction_session_timeout` de 15 s en el rol `ticbo_app`; timeout de la función `api` de 10 s.
-- **Región**: la misma región de AWS que el proyecto de Supabase, para que la latencia entre la función y la base sea mínima.
+- **Región: us-west-2**, la del proyecto de Supabase. Lambda, API Gateway HTTP API y SQS cuestan lo mismo ahí que en us-east-1; lo que cambia es la latencia hacia la base: cada consulta entre regiones suma ~65 ms y una petición de login hace 4–6, mientras que en la misma región cada una tarda ~1 ms. Para el usuario en México, Oregón o Virginia dan una latencia parecida.
 
 ### Caché en el borde
 
