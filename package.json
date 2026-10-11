@@ -26,6 +26,8 @@
     "db:up": "docker compose up -d db",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file-if-exists=.env src/shared/infrastructure/database/migrate.ts",
+    "db:migrate:supabase": "node --env-file=.env.supabase src/shared/infrastructure/database/migrate.ts",
+    "start:supabase": "nest build && node --env-file=.env.supabase dist/main.js",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {

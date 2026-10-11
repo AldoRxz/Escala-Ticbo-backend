@@ -8,7 +8,7 @@
  * Output: dist-lambda/api, with handler `index.handler`.
  */
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { build } from 'esbuild';
 
 const arch = process.argv.find((arg) => arg.startsWith('--arch='))?.split('=')[1] ?? 'arm64';
@@ -93,6 +93,10 @@ if (npmCli) {
     shell: process.platform === 'win32',
   });
 }
+
+// Public CA certificates (e.g. Supabase root) read through DATABASE_SSL_CA=certs/...;
+// the function runs from the package root, so relative paths resolve there.
+cpSync('certs', `${outdir}/certs`, { recursive: true });
 
 const bundleKb = Math.round(statSync(`${outdir}/index.mjs`).size / 1024);
 console.log(`Lambda package ready in ${outdir} (linux-${arch}, bundle ${bundleKb} KB).`);
