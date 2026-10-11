@@ -51,8 +51,9 @@ Estado al 11 de octubre de 2026. Diseño general en [backend-design.md](./backen
 1. **Rotar la contraseña de `postgres` en Supabase** (Database → Settings → Reset database password): la actual quedó escrita en un chat. Después hay que actualizar `/ticbo/prod/DATABASE_MIGRATION_URL` en SSM y `.env.supabase`.
 2. **Supabase → Database → SSL Configuration → Enforce SSL**, para rechazar cualquier conexión sin TLS. Todas las nuestras ya usan TLS.
 3. **MFA** en el usuario raíz de la cuenta principal de AWS, en tu usuario de IAM Identity Center y en tu cuenta de GitHub.
-4. **Dominio `api.ticbo.com`** para la API. Sin él, el navegador trata la cookie de sesión como de un tercero (`*.execute-api.amazonaws.com`) y el login web no funciona en producción.
+4. **Dominio propio.** Hoy el sitio en Vercel reenvía `/api/*` a la API, así que la cookie de sesión es del mismo sitio y el login funciona sin dominio. Con dominio: canónico sin www, la API detrás del mismo proxy y el buzón de facturas en Cloudflare Email Routing.
 5. **Aviso de privacidad y términos** (LFPDPPP) antes de recibir clientes reales; definir la retención de fotos de tickets.
+6. **Buzón `ticbomx@gmail.com`**: verificación en dos pasos, contraseña única y correo/teléfono de recuperación, sin usarlo para nada más. Recibirá facturas con datos fiscales de todos los clientes. Cuando se construya el módulo de facturación, generar una contraseña de aplicación y guardarla en SSM como `/ticbo/prod/INVOICE_MAILBOX_PASSWORD` (`SecureString`), nunca en el chat.
 
 ## Riesgos aceptados por ahora
 
@@ -64,3 +65,4 @@ Estado al 11 de octubre de 2026. Diseño general en [backend-design.md](./backen
 | El access token no se revoca antes de 15 min | Verificarlo sin base de datos es lo que mantiene barata cada petición | Si se necesita cierre de sesión inmediato |
 | Un push a `main` despliega a producción | Hoy hay un solo desarrollador | Al sumar personas: protección de rama con revisión y checks obligatorios |
 | Los secretos se ven en la consola de Lambda para administradores | Solo los administradores de la cuenta tienen acceso | Al mover el vault a KMS |
+| El buzón de facturas depende de una contraseña de aplicación de Gmail con acceso a todo el buzón | Funciona hoy sin dominio ni costo; la cuenta se usa solo para esto | Al tener dominio (Email Routing + SES), o antes si Google retira las contraseñas de aplicación |
