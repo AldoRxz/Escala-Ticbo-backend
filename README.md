@@ -40,7 +40,8 @@ Todas están documentadas en [.env.example](.env.example) y se validan al arranc
 - `DATABASE_URL` usa el rol restringido `ticbo_app` (le aplica Row-Level Security); `DATABASE_MIGRATION_URL`, el rol dueño, solo para migraciones.
 - Con **Supabase** (proyecto en us-west-2): copia `.env.supabase.example` a `.env.supabase` y llena las contraseñas; `npm run db:migrate:supabase` migra y `npm run start:supabase` levanta la API local contra Supabase. `DATABASE_URL` apunta al *transaction pooler* (puerto 6543, usuario `ticbo_app.<project-ref>`), `DATABASE_MIGRATION_URL` al *session pooler* (puerto 5432, usuario `postgres.<project-ref>`), `DATABASE_SSL=true` con el certificado de Supabase en `DATABASE_SSL_CA`, y `DATABASE_POOL_MAX=1` en Lambda. Desactiva la Data API en el panel de Supabase: la API de Ticbo no la usa.
 - `VAULT_KEYS` son las llaves maestras con las que se cifran los secretos de clientes; viven fuera de la base de datos.
-- `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` son opcionales. En Google Cloud, la URI de redirección autorizada es `{API_PUBLIC_URL}/api/v1/auth/oauth/google/callback`.
+- `API_PUBLIC_URL` es el origen por el que el navegador llega a la API: el sitio web, que reenvía `/api/*` (proxy en `next.config.ts` del frontend). Local: `http://localhost:3000`; producción: `https://escala-ticbo.vercel.app` (variables del repo en GitHub: `API_PUBLIC_URL`, `WEB_APP_URL`, `CORS_ORIGINS`).
+- `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` son opcionales (en producción: `/ticbo/prod/GOOGLE_CLIENT_ID` y `/ticbo/prod/GOOGLE_CLIENT_SECRET` en SSM). En Google Cloud, las URIs de redirección autorizadas son `{API_PUBLIC_URL}/api/v1/auth/oauth/google/callback` de cada ambiente. `GET /api/v1/auth/oauth` dice qué proveedores están activos.
 
 ## API
 
