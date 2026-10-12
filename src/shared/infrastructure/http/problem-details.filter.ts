@@ -7,9 +7,13 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { AppError, type ErrorCategory } from '../../domain/app-error.js';
+import {
+  AppError,
+  type ErrorCategory,
+  InvalidInputError,
+  type ValidationIssue,
+} from '../../domain/app-error.js';
 import { describeError } from '../logging/describe-error.js';
-import { RequestValidationError, type ValidationIssue } from './zod-validation.pipe.js';
 
 /** RFC 9457 problem details, plus a stable `code` clients can branch on. */
 export interface ProblemDetails {
@@ -78,7 +82,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
         ...base(status),
         code: exception.code,
         detail: exception.message,
-        ...(exception instanceof RequestValidationError ? { errors: exception.issues } : {}),
+        ...(exception instanceof InvalidInputError ? { errors: exception.issues } : {}),
       };
     }
 

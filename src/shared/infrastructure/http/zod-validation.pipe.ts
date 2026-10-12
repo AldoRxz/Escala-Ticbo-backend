@@ -1,23 +1,15 @@
 import type { PipeTransform } from '@nestjs/common';
 import type { z } from 'zod';
-import { AppError } from '../../domain/app-error.js';
+import { InvalidInputError, type ValidationIssue } from '../../domain/app-error.js';
 
-export interface ValidationIssue {
-  path: string;
-  message: string;
-  code: string;
-}
+export type { ValidationIssue };
 
-export class RequestValidationError extends AppError {
-  override readonly code = 'validation_failed';
-  override readonly category = 'invalid_input';
+export class RequestValidationError extends InvalidInputError {}
 
-  constructor(readonly issues: ValidationIssue[]) {
-    super('The request is invalid.');
-  }
-}
-
-/** Validates and parses a request part (body, query, params) with a Zod schema. */
+/**
+ * Validates and parses a request part (body, query, params) with a Zod schema.
+ * A custom issue may carry its own stable code in `params.code`.
+ */
 export class ZodValidationPipe<TSchema extends z.ZodType> implements PipeTransform<
   unknown,
   z.output<TSchema>
@@ -33,8 +25,16 @@ export class ZodValidationPipe<TSchema extends z.ZodType> implements PipeTransfo
       result.error.issues.map((issue) => ({
         path: issue.path.map(String).join('.'),
         message: issue.message,
-        code: issue.code,
+        code: customCode(issue) ?? issue.code,
       })),
     );
   }
+}
+
+function customCode(issue: z.core.$ZodIssue): string | undefined {
+  if (issue.code !== 'custom') {
+    return undefined;
+  }
+  const code = (issue.params as { code?: unknown } | undefined)?.code;
+  return typeof code === 'string' ? code : undefined;
 }

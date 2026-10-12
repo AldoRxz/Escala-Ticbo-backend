@@ -22,3 +22,20 @@ export abstract class AppError extends Error {
     this.name = new.target.name;
   }
 }
+
+/** One problem with one field; `code` is stable so clients can show their own message. */
+export interface ValidationIssue {
+  path: string;
+  message: string;
+  code: string;
+}
+
+/** Input that breaks one or more rules, reported field by field. */
+export class InvalidInputError extends AppError {
+  override readonly code: string = 'validation_failed';
+  override readonly category = 'invalid_input';
+
+  constructor(readonly issues: ValidationIssue[]) {
+    super('The request is invalid.');
+  }
+}
