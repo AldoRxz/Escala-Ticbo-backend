@@ -1,0 +1,1 @@
+ALTER TABLE "whatsapp_senders" ADD COLUMN "label" varchar(80);

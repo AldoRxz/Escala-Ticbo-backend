@@ -72,6 +72,8 @@ export const whatsappSenders = pgTable(
       .references(() => whatsappChannels.id, { onDelete: 'cascade' }),
     // Sender phone as reported by WhatsApp (country code + number, digits only)
     waId: varchar('wa_id', { length: 20 }).notNull(),
+    // Who this phone belongs to, as the account names it ("Juan · ventas")
+    label: varchar('label', { length: 80 }),
     userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
     defaultFiscalProfileId: uuid('default_fiscal_profile_id'),
     createdAt: createdAt(),
