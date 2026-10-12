@@ -90,7 +90,9 @@ Todo el cómputo son funciones Lambda que salen del mismo código:
 
 - **`api`** (`src/lambda.ts`): HTTP para la app web y los webhooks, detrás de API Gateway. Responde rápido y nunca hace trabajo largo. Para desarrollo y pruebas, `src/main.ts` levanta la misma aplicación como servidor HTTP.
 - **Workers** (pendientes): una función por tipo de trabajo, disparada por su cola de SQS. La de portales usa más memoria (un Chromium headless necesita ~1.5 GB) y un timeout largo; las demás son pequeñas.
-- **Tareas periódicas** (pendientes): EventBridge Scheduler invoca funciones para limpiar refresh tokens vencidos, reencolar tickets atascados y revalidar CFDI ante el SAT.
+- **Tareas periódicas**: EventBridge Scheduler invoca la misma función con `{"task": "<nombre>"}` en lugar de un evento HTTP (`src/bootstrap/scheduled-tasks.ts`).
+  - Hoy existe `maintenance`, cada 6 horas: borra refresh tokens vencidos y contadores de intentos de login ya sin efecto. Esas escrituras también son la actividad que evita que Supabase pause un proyecto del plan gratuito tras una semana sin uso.
+  - Pendientes: reencolar tickets atascados y revalidar CFDI ante el SAT.
 
 ---
 
@@ -584,7 +586,7 @@ Nada queda encendido esperando tráfico. Cada pieza cobra por petición, por mil
 | Cómputo | AWS Lambda en **arm64** (Graviton), Node.js 24 | Por petición y por GB-segundo; incluye un nivel gratuito permanente |
 | Cola | SQS estándar con cola de mensajes muertos | Por millón de solicitudes; nivel gratuito permanente |
 | Tareas periódicas | EventBridge Scheduler | Por invocación; nivel gratuito amplio |
-| Base de datos | Supabase PostgreSQL (plan Pro para producción: el gratuito se pausa por inactividad) | Cuota mensual fija: es el único costo fijo relevante |
+| Base de datos | Supabase PostgreSQL. El plan gratuito se pausa tras una semana con poca actividad; la tarea `maintenance` escribe cada 6 horas para evitarlo. Pro al tener clientes reales | Cuota mensual fija: es el único costo fijo relevante |
 | Archivos | Cloudflare R2 | Por GB almacenado; **sin cargos de salida** |
 | Correo (CFDI entrantes y solicitudes) | Gmail `ticbomx@gmail.com` por IMAP/SMTP mientras no haya dominio; después, Cloudflare Email Routing (entrada) y Amazon SES (salida) | Gratis (SES: centavos por cada mil correos) |
 | Secretos de clientes | AWS KMS (una llave, al desplegar) | ~1 USD al mes + por cada 10,000 operaciones |

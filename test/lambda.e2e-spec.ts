@@ -105,4 +105,34 @@ describe('Lambda handler (e2e)', () => {
     );
     expect(rows[0]?.ip_address).toBe('203.0.113.7');
   });
+
+  it('runs the scheduled maintenance task', async () => {
+    await handler(
+      httpApiEvent('POST', '/api/v1/auth/register', {
+        body: { email: 'old@example.com', password: 'correct horse battery', fullName: 'Old' },
+      }),
+      context,
+    );
+    await owner.query(`update refresh_tokens set expires_at = now() - interval '1 minute'`);
+    await owner.query(
+      `insert into auth_throttles (key, failures, window_started_at)
+       values (repeat('a', 64), 1, now() - interval '1 hour'),
+              (repeat('b', 64), 1, now())`,
+    );
+
+    const outcome = await handler({ task: 'maintenance' }, context);
+
+    expect(outcome).toEqual({
+      task: 'maintenance',
+      result: { expiredSessions: 1, staleThrottles: 1 },
+    });
+    const { rows } = await owner.query<{ key: string }>('select key from auth_throttles');
+    expect(rows.map((row) => row.key)).toEqual(['b'.repeat(64)]);
+  });
+
+  it('fails on an unknown scheduled task', async () => {
+    await expect(handler({ task: 'toString' }, context)).rejects.toThrow(
+      'Unknown scheduled task: toString',
+    );
+  });
 });

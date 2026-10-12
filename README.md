@@ -94,6 +94,13 @@ Cada push a `main` que toque código, migraciones o infraestructura corre `.gith
 
 Otros workflows: `backup.yml` hace un `pg_dump` diario a S3 y Dependabot propone actualizaciones cada semana.
 
+Tareas programadas: EventBridge Scheduler invoca la Lambda con `{"task":"maintenance"}` cada 6 horas. La tarea borra sesiones vencidas, y esa actividad evita que Supabase pause el proyecto del plan gratuito. Para correrla a mano:
+
+```bash
+aws lambda invoke --function-name <FunctionName del stack> --cli-binary-format raw-in-base64-out \
+  --payload '{"task":"maintenance"}' --profile ticbo /dev/stdout
+```
+
 La base de la cuenta (rol de despliegue, permissions boundary, buckets) está en `infra/bootstrap.yaml`; se aplica a mano solo cuando ese archivo cambia:
 
 ```bash

@@ -97,6 +97,19 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /{proxy+}
             Method: ANY
+        # Deletes expired sessions. Its database writes also keep a Supabase
+        # free-plan project from pausing after a week without traffic.
+        Maintenance:
+          Type: ScheduleV2
+          Properties:
+            Name: !Sub '${AWS::StackName}-maintenance'
+            Description: Purge expired auth data and keep the database active
+            ScheduleExpression: rate(6 hours)
+            Input: '{"task":"maintenance"}'
+            RetryPolicy:
+              MaximumRetryAttempts: 2
+              MaximumEventAgeInSeconds: 3600
+            PermissionsBoundary: !Sub 'arn:aws:iam::${AWS::AccountId}:policy/ticbo-app-workload-boundary'
 
   HttpApi:
     Type: AWS::Serverless::HttpApi
