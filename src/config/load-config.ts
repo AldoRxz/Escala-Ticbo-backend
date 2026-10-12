@@ -76,6 +76,8 @@ const envSchema = z
     GOOGLE_CLIENT_ID: z.string().min(1).optional(),
     GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
     VAULT_KEYS: vaultKeys,
+    // Inbox the fiscal profiles' plus-address aliases point to (docs: Buzón de facturas).
+    INVOICE_MAILBOX_ADDRESS: z.email().default('ticbomx@gmail.com'),
   })
   .superRefine((env, ctx) => {
     if (Boolean(env.GOOGLE_CLIENT_ID) !== Boolean(env.GOOGLE_CLIENT_SECRET)) {
@@ -172,6 +174,9 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     vault: {
       keys: env.VAULT_KEYS,
+    },
+    invoiceMailbox: {
+      address: env.INVOICE_MAILBOX_ADDRESS.toLowerCase(),
     },
   };
 }

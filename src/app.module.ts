@@ -3,6 +3,7 @@ import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import type { AppConfig } from './config/app-config.js';
 import { ConfigModule } from './config/config.module.js';
+import { FiscalModule } from './modules/fiscal/fiscal.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { IamModule } from './modules/iam/iam.module.js';
 import { JwtAuthGuard } from './modules/iam/presentation/http/jwt-auth.guard.js';
@@ -29,6 +30,7 @@ export class AppModule {
         HealthModule,
         IamModule,
         VaultModule,
+        FiscalModule,
       ],
       providers: [
         { provide: APP_FILTER, useClass: ProblemDetailsFilter },

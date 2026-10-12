@@ -62,6 +62,11 @@ export interface VaultConfig {
   keys: Array<{ id: string; key: Buffer }>;
 }
 
+export interface InvoiceMailboxConfig {
+  /** Ticbo's invoice inbox; each fiscal profile gets a plus-address alias of it. */
+  address: string;
+}
+
 /**
  * Validated runtime configuration. Declared as an abstract class so Nest can
  * inject it by type; the value is a plain object built by `loadConfig`.
@@ -74,4 +79,5 @@ export abstract class AppConfig {
   abstract readonly database: DatabaseConfig;
   abstract readonly auth: AuthConfig;
   abstract readonly vault: VaultConfig;
+  abstract readonly invoiceMailbox: InvoiceMailboxConfig;
 }
