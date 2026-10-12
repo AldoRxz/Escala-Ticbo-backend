@@ -15,6 +15,7 @@ import { GetCurrentUserUseCase } from './application/use-cases/get-current-user.
 import { LoginWithOAuthUseCase } from './application/use-cases/login-with-oauth.use-case.js';
 import { LoginWithPasswordUseCase } from './application/use-cases/login-with-password.use-case.js';
 import { LogoutUseCase } from './application/use-cases/logout.use-case.js';
+import { PurgeExpiredAuthDataUseCase } from './application/use-cases/purge-expired-auth-data.use-case.js';
 import { RefreshSessionUseCase } from './application/use-cases/refresh-session.use-case.js';
 import { RegisterUserUseCase } from './application/use-cases/register-user.use-case.js';
 import { GoogleOAuthProvider } from './infrastructure/oauth/google-oauth.provider.js';
@@ -74,9 +75,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
     RefreshSessionUseCase,
     LogoutUseCase,
     GetCurrentUserUseCase,
+    PurgeExpiredAuthDataUseCase,
     // Presentation
     AuthCookies,
   ],
-  exports: [AccessTokenService],
+  exports: [AccessTokenService, PurgeExpiredAuthDataUseCase],
 })
 export class IamModule {}

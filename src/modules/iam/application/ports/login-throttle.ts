@@ -9,4 +9,6 @@ export abstract class LoginThrottleStore {
     next: (state: ThrottleState | null) => ThrottleState,
   ): Promise<void>;
   abstract clear(email: string): Promise<void>;
+  /** Deletes counters whose window started before `cutoff`; returns how many. */
+  abstract deleteStale(cutoff: Date): Promise<number>;
 }

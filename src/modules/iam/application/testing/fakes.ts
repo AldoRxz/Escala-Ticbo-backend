@@ -151,6 +151,18 @@ export class InMemorySessionRepository implements SessionRepository {
     this.revokeWhere((session) => session.userId === userId, now);
   }
 
+  async deleteExpired(cutoff: Date): Promise<number> {
+    let deleted = 0;
+    // Deleting the current entry while iterating a Map is safe.
+    for (const session of this.sessions.values()) {
+      if (session.expiresAt < cutoff) {
+        this.sessions.delete(session.id);
+        deleted++;
+      }
+    }
+    return deleted;
+  }
+
   activeSessions(): RefreshSession[] {
     return [...this.sessions.values()].filter((session) => !session.revokedAt);
   }
@@ -178,6 +190,17 @@ export class InMemoryLoginThrottleStore implements LoginThrottleStore {
 
   async clear(email: string): Promise<void> {
     this.states.delete(email.trim().toLowerCase());
+  }
+
+  async deleteStale(cutoff: Date): Promise<number> {
+    let deleted = 0;
+    for (const [key, state] of this.states) {
+      if (state.windowStartedAt < cutoff) {
+        this.states.delete(key);
+        deleted++;
+      }
+    }
+    return deleted;
   }
 }
 

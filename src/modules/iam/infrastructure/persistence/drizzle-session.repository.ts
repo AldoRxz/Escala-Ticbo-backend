@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, lt } from 'drizzle-orm';
 import {
   type Database,
   DATABASE,
@@ -65,5 +65,10 @@ export class DrizzleSessionRepository implements SessionRepository {
       .update(refreshTokens)
       .set({ revokedAt: now })
       .where(and(eq(refreshTokens.userId, userId), isNull(refreshTokens.revokedAt)));
+  }
+
+  async deleteExpired(cutoff: Date): Promise<number> {
+    const result = await this.db.delete(refreshTokens).where(lt(refreshTokens.expiresAt, cutoff));
+    return result.rowCount ?? 0;
   }
 }

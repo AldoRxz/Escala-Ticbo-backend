@@ -19,6 +19,15 @@ export function isLocked(state: ThrottleState | null, now: Date): boolean {
   return state?.lockedUntil != null && state.lockedUntil > now;
 }
 
+/**
+ * Counters whose window started before this instant act exactly like no counter:
+ * the window is over, and so is any lock (a lock moves the window start to its
+ * end). They can be deleted.
+ */
+export function staleThrottleCutoff(now: Date): Date {
+  return new Date(now.getTime() - LOGIN_THROTTLE.windowMs);
+}
+
 /** State after one more failed attempt. */
 export function afterFailure(state: ThrottleState | null, now: Date): ThrottleState {
   const windowExpired =

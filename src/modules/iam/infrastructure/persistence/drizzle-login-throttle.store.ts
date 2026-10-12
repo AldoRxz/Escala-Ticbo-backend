@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { eq, lt } from 'drizzle-orm';
 import {
   type Database,
   DATABASE,
@@ -49,5 +49,12 @@ export class DrizzleLoginThrottleStore implements LoginThrottleStore {
 
   async clear(email: string): Promise<void> {
     await this.db.delete(authThrottles).where(eq(authThrottles.key, keyFor(email)));
+  }
+
+  async deleteStale(cutoff: Date): Promise<number> {
+    const result = await this.db
+      .delete(authThrottles)
+      .where(lt(authThrottles.windowStartedAt, cutoff));
+    return result.rowCount ?? 0;
   }
 }

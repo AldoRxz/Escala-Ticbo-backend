@@ -31,4 +31,7 @@ export abstract class SessionRepository {
 
   abstract revokeFamily(familyId: string, now: Date): Promise<void>;
   abstract revokeAllForUser(userId: string, now: Date): Promise<void>;
+
+  /** Deletes sessions that expired before `cutoff`; returns how many. */
+  abstract deleteExpired(cutoff: Date): Promise<number>;
 }
