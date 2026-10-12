@@ -24,6 +24,9 @@ Estado al 11 de octubre de 2026. Diseño general en [backend-design.md](./backen
 | Supabase | Data API apagada; `anon` y `authenticated` sin ningún permiso (migración `0002`) |
 | Conexión | TLS verificado contra la raíz de Supabase (`certs/supabase-root-2021.crt`); `statement_timeout` de 10 s |
 | Secretos de clientes | Cifrado de sobre AES-256-GCM, llave maestra fuera de la base (`VAULT_KEYS` en SSM; KMS después); el texto cifrado queda atado a su cuenta y tipo |
+| WhatsApp | El token de acceso y el *app secret* de cada número van al vault y nunca se devuelven por la API. Del *verify token* del webhook solo se guarda su SHA-256 (se muestra una vez) y se compara en tiempo constante |
+| Roles dentro de la cuenta | Solo owner y admin dan de alta, editan o borran RFC y números de WhatsApp; cualquier miembro consulta. La cuenta activa sale siempre del token firmado, nunca de la URL ni del cuerpo |
+| Sesiones vencidas | Una tarea programada borra cada 6 horas los refresh tokens vencidos y los contadores de intentos de login ya sin efecto |
 | Respaldos | `pg_dump` diario a S3 (`ticbo-db-backups-*`): bucket privado, cifrado, versionado, 35 días. El rol del respaldo solo puede subir archivos; no puede leer ni borrar |
 | Logs | Sin query strings (códigos OAuth), sin cuerpos de petición y con los parámetros SQL redactados (correos, hashes). Retención de 14 días |
 
@@ -44,7 +47,7 @@ Estado al 11 de octubre de 2026. Diseño general en [backend-design.md](./backen
 | Repo público | Historial revisado sin secretos; secret scanning y push protection de GitHub activos |
 | Dependencias | `npm audit` de producción en cada ejecución; alertas y PRs semanales de Dependabot |
 | GitHub Actions | Acciones fijadas a un commit (no a etiquetas movibles); `persist-credentials: false` |
-| Puerta de calidad | typecheck, lint, 79 pruebas unitarias y 32 e2e antes de cualquier despliegue |
+| Puerta de calidad | typecheck, lint, pruebas unitarias y e2e contra Postgres real antes de cualquier despliegue |
 
 ## Pendientes que dependen de ti
 

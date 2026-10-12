@@ -53,8 +53,15 @@ Todas las rutas viven bajo `/api/v1`. Los errores siguen RFC 9457 (`application/
 | `POST /auth/login` | público | Inicio de sesión |
 | `POST /auth/refresh` | cookie | Rota la sesión y entrega un token de acceso nuevo |
 | `POST /auth/logout` | cookie | Cierra la sesión |
+| `GET /auth/oauth` | público | Proveedores de OAuth activos (`{ providers }`) |
 | `GET /auth/oauth/google` | público | Inicia sesión con Google |
 | `GET /me` | Bearer | Usuario y cuentas |
+| `GET /fiscal-profiles` · `GET /fiscal-profiles/catalog` | Bearer, cualquier miembro | RFC de la cuenta; catálogos del SAT (regímenes y usos de CFDI) |
+| `POST /fiscal-profiles` · `PATCH`/`DELETE /fiscal-profiles/:id` · `POST /fiscal-profiles/:id/default` | Bearer, owner/admin | Alta, edición, baja y RFC por defecto |
+| `GET /whatsapp/channels` | Bearer, cualquier miembro | Números de WhatsApp conectados y sus teléfonos autorizados |
+| `POST`/`DELETE /whatsapp/channels[/:id]` · `POST /whatsapp/channels/:id/verify-token` | Bearer, owner/admin | Conecta o desconecta un número; genera un verify token nuevo |
+| `POST`/`PATCH`/`DELETE /whatsapp/channels/:id/senders[/:senderId]` | Bearer, owner/admin | Teléfonos autorizados para mandar tickets |
+| `GET /webhooks/whatsapp/:channelId` | público | Verificación del webhook de Meta (`hub.challenge`) |
 | `GET /health` · `GET /health/live` | público | Readiness (incluye PostgreSQL) y liveness |
 
 El token de acceso llega en el cuerpo de la respuesta y dura 15 minutos: guárdalo en memoria, no en `localStorage`. El refresh token viaja solo en la cookie `httpOnly` `ticbo_rt`; desde el navegador llama a la API con `credentials: 'include'`.
@@ -75,7 +82,9 @@ src/
     iam/                    identidad y acceso (implementado)
     vault/                  cifrado de secretos de clientes (implementado)
     health/                 probes de orquestación (implementado)
-    fiscal/ messaging/ receipts/ invoicing/ billing/   por implementar
+    fiscal/                 perfiles fiscales (RFC) y catálogos del SAT (implementado)
+    messaging/              números de WhatsApp, remitentes y webhook de Meta (en curso)
+    receipts/ invoicing/ billing/   por implementar
 drizzle/                    migraciones SQL (incluye RLS, permisos y endurecimiento para Supabase)
 scripts/                    setup-env y build-lambda
 test/                       pruebas e2e, incluido el handler de Lambda

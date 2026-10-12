@@ -1,6 +1,6 @@
 # Ticbo · Diseño del backend
 
-Versión 0.2 · octubre 2026 · Estado: base implementada (identidad, sesiones, esquema multi-tenant, vault de secretos, empaquetado para AWS Lambda); pipeline de tickets diseñado, pendiente de implementar.
+Versión 0.2 · octubre 2026 · Estado: implementados la base (identidad, sesiones, esquema multi-tenant, vault de secretos, AWS Lambda), los perfiles fiscales y la conexión de WhatsApp. El pipeline de tickets está diseñado y pendiente de implementar.
 
 Objetivo de despliegue: **AWS Lambda con pago por uso** (sin servidores encendidos) y PostgreSQL en **Supabase** durante la etapa inicial.
 
@@ -32,12 +32,19 @@ Un punto que define la arquitectura: **Ticbo no timbra**. El CFDI lo emite el co
 ### Qué existe hoy en el código
 
 - Proyecto NestJS 12 + Fastify 5 en TypeScript estricto (ESM).
-- Esquema completo de PostgreSQL (14 tablas) con RLS en todas: aislamiento por cuenta en los datos de cliente y acceso exclusivo del rol de la API en las tablas de control.
-- Módulo `iam`: registro e inicio de sesión con correo y contraseña (Argon2id), Google OAuth (OIDC + PKCE), JWT de acceso, refresh tokens rotativos con detección de reúso, guard global y decoradores.
+- Esquema completo de PostgreSQL (15 tablas) con RLS en todas: aislamiento por cuenta en los datos de cliente y acceso exclusivo del rol de la API en las tablas de control.
+- Módulo `iam`: registro e inicio de sesión con correo y contraseña (Argon2id), Google OAuth (OIDC + PKCE), JWT de acceso, refresh tokens rotativos con detección de reúso y bloqueo por intentos fallidos. Incluye guard global, decoradores y autorización por rol en la cuenta (`requireRole`: owner/admin administran, cualquier miembro consulta).
+- Módulo `fiscal`: perfiles fiscales (RFC) validados contra los catálogos del SAT (régimen fiscal y uso de CFDI compatibles con persona física o moral). Cada perfil recibe su alias del buzón de facturas (`ticbomx+<clave>@gmail.com`).
+- Módulo `messaging`, primera parte:
+  - conexión de números de WhatsApp, con el token de acceso y el *app secret* en el vault;
+  - teléfonos autorizados;
+  - verificación del webhook de Meta (`GET`).
+
+  La recepción de mensajes (`POST` con firma) llega con el pipeline de tickets.
 - Módulo `vault`: cifrado de sobre AES-256-GCM con rotación de llaves.
-- Handler de AWS Lambda (`src/lambda.ts`) y empaquetado (`npm run build:lambda`), probado en la imagen oficial de Lambda con Node 24.
-- Health checks, errores en formato RFC 9457, configuración validada al arrancar.
-- Docker Compose para desarrollo, imagen de contenedor como alternativa, 71 pruebas unitarias y 31 e2e contra Postgres real.
+- Handler de AWS Lambda (`src/lambda.ts`) y empaquetado (`npm run build:lambda`), probado en la imagen oficial de Lambda con Node 24. Además del tráfico HTTP, atiende tareas programadas (`maintenance`, cada 6 horas).
+- Health checks, errores en formato RFC 9457 con errores por campo, configuración validada al arrancar.
+- Docker Compose para desarrollo, imagen de contenedor como alternativa, pruebas unitarias y e2e contra Postgres real.
 
 ---
 
@@ -403,7 +410,12 @@ El `id_token` llega directo del endpoint de tokens de Google por TLS, así que, 
 
 ## 6. Pipeline asíncrono: de la foto al CFDI
 
-> Estado: diseñado; el esquema (`whatsapp_channels`, `whatsapp_senders`, `receipts`, `merchants`, `invoices`) ya existe, los módulos `messaging`, `receipts` e `invoicing` están por implementar.
+> Estado: el esquema (`whatsapp_channels`, `whatsapp_senders`, `receipts`, `merchants`, `invoices`) ya existe.
+>
+> - Implementado en `messaging`: la conexión de canales y remitentes y la verificación `GET` del webhook.
+> - Pendientes:
+>   - el `POST` del webhook (con validación de firma);
+>   - los módulos `receipts` e `invoicing`.
 
 Ver el flujo de producto completo en [flujo-del-bot.md](../product/flujo-del-bot.md). Aquí está lo técnico.
 
