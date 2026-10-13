@@ -109,6 +109,21 @@ describe('Fiscal profiles (e2e)', () => {
     expect(remaining.items).toEqual([expect.objectContaining({ id: first.id, isDefault: true })]);
   });
 
+  it('creates a profile without a suggested CFDI use and clears one', async () => {
+    const token = await signUp('ana@example.com');
+    const { defaultCfdiUse: _use, ...withoutUse } = andina;
+
+    const created = await call(token, 'POST', '/fiscal-profiles', withoutUse);
+    expect(created.statusCode).toBe(201);
+    expect(created.json()).toMatchObject({ defaultCfdiUse: null });
+
+    const { id } = created.json<{ id: string }>();
+    const set = await call(token, 'PATCH', `/fiscal-profiles/${id}`, { defaultCfdiUse: 'G01' });
+    expect(set.json()).toMatchObject({ defaultCfdiUse: 'G01' });
+    const cleared = await call(token, 'PATCH', `/fiscal-profiles/${id}`, { defaultCfdiUse: null });
+    expect(cleared.json()).toMatchObject({ defaultCfdiUse: null });
+  });
+
   it('reports invalid fields one by one', async () => {
     const token = await signUp('ana@example.com');
     const response = await call(token, 'POST', '/fiscal-profiles', {

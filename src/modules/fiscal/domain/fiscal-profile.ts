@@ -12,7 +12,8 @@ export interface FiscalProfile {
   readonly legalName: string;
   readonly taxRegime: string;
   readonly postalCode: string;
-  readonly defaultCfdiUse: string;
+  /** CFDI use the bot invoices with unless the person picks another; null: it asks each time. */
+  readonly defaultCfdiUse: string | null;
   /** Ticbo inbox alias typed into portals so the CFDI reaches Ticbo. */
   readonly invoiceEmail: string;
   readonly isDefault: boolean;
@@ -25,7 +26,8 @@ export interface FiscalData {
   legalName: string;
   taxRegime: string;
   postalCode: string;
-  defaultCfdiUse: string;
+  /** Optional: null or empty means no suggested use. */
+  defaultCfdiUse: string | null;
 }
 
 export function personTypeOf(rfc: string): PersonType {
@@ -46,8 +48,9 @@ const issue = (path: keyof FiscalData, code: string, message: string): Validatio
 
 /**
  * Normalizes `input` and checks it against the SAT rules for a CFDI 4.0 receiver:
- * RFC format, a regime that applies to that kind of person and a CFDI use the
- * SAT accepts with that regime. Returns the clean data or every problem found.
+ * RFC format, a regime that applies to that kind of person and, if one is given,
+ * a CFDI use the SAT accepts with that regime. Returns the clean data or every
+ * problem found.
  */
 export function validateFiscalData(
   input: FiscalData,
@@ -87,14 +90,16 @@ export function validateFiscalData(
     );
   }
 
-  const use = findCfdiUse(input.defaultCfdiUse.trim().toUpperCase());
-  if (!use) {
+  const useCode = input.defaultCfdiUse?.trim().toUpperCase() ?? '';
+  const use = useCode === '' ? null : findCfdiUse(useCode);
+  if (use === undefined) {
     issues.push(
       issue('defaultCfdiUse', 'unknown_cfdi_use', 'Choose a CFDI use from the SAT catalog.'),
     );
   } else if (
-    (personType && !use.personTypes.includes(personType)) ||
-    (regime && !use.taxRegimes.includes(regime.code))
+    use &&
+    ((personType && !use.personTypes.includes(personType)) ||
+      (regime && !use.taxRegimes.includes(regime.code)))
   ) {
     issues.push(
       issue(
@@ -105,7 +110,7 @@ export function validateFiscalData(
     );
   }
 
-  if (issues.length > 0 || typeof rfc === 'string' || !regime || !use) {
+  if (issues.length > 0 || typeof rfc === 'string' || !regime || use === undefined) {
     return { ok: false, issues };
   }
   return {
@@ -115,7 +120,7 @@ export function validateFiscalData(
       legalName,
       taxRegime: regime.code,
       postalCode,
-      defaultCfdiUse: use.code,
+      defaultCfdiUse: use?.code ?? null,
     },
   };
 }

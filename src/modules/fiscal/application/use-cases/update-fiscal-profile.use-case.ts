@@ -35,7 +35,9 @@ export class UpdateFiscalProfileUseCase {
       legalName: changes.legalName ?? current.legalName,
       taxRegime: changes.taxRegime ?? current.taxRegime,
       postalCode: changes.postalCode ?? current.postalCode,
-      defaultCfdiUse: changes.defaultCfdiUse ?? current.defaultCfdiUse,
+      // undefined: not sent, keep it; null: clear the suggestion.
+      defaultCfdiUse:
+        changes.defaultCfdiUse === undefined ? current.defaultCfdiUse : changes.defaultCfdiUse,
     });
     if (!result.ok) {
       throw new InvalidInputError(result.issues);

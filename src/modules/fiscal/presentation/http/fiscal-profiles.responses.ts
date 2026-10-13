@@ -9,7 +9,8 @@ export interface FiscalProfileResponse {
   legalName: string;
   taxRegime: string;
   postalCode: string;
-  defaultCfdiUse: string;
+  /** Null: the bot asks the CFDI use of every receipt. */
+  defaultCfdiUse: string | null;
   invoiceEmail: string;
   isDefault: boolean;
   verifiedAt: string | null;

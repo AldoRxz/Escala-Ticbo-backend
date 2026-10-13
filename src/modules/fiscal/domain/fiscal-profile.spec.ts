@@ -61,6 +61,15 @@ describe('validateFiscalData', () => {
     });
   });
 
+  it('accepts a profile without a suggested CFDI use', () => {
+    for (const empty of [null, '', '  ']) {
+      expect(validateFiscalData({ ...company, defaultCfdiUse: empty })).toMatchObject({
+        ok: true,
+        value: { defaultCfdiUse: null },
+      });
+    }
+  });
+
   it('reports every invalid field at once', () => {
     expect(
       codes({

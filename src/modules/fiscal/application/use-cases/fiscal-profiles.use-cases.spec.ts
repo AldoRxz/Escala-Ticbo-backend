@@ -102,6 +102,23 @@ describe('Fiscal profile use cases', () => {
     ).resolves.toMatchObject({ rfc: 'GAS1902148K3', postalCode: '64000', legalName: 'ANDINA SA' });
   });
 
+  it('lets the suggested CFDI use be left out or cleared', async () => {
+    const profile = await create.execute(owner, { ...andina, defaultCfdiUse: null });
+    expect(profile.defaultCfdiUse).toBeNull();
+
+    const update = new UpdateFiscalProfileUseCase(repository);
+    await expect(
+      update.execute(owner, profile.id, { defaultCfdiUse: 'G01' }),
+    ).resolves.toMatchObject({ defaultCfdiUse: 'G01' });
+    // Omitted keeps it; null clears it.
+    await expect(update.execute(owner, profile.id, { postalCode: '64000' })).resolves.toMatchObject(
+      { defaultCfdiUse: 'G01' },
+    );
+    await expect(
+      update.execute(owner, profile.id, { defaultCfdiUse: null }),
+    ).resolves.toMatchObject({ defaultCfdiUse: null });
+  });
+
   it('does not reach the profiles of another account', async () => {
     const profile = await create.execute(owner, andina);
 

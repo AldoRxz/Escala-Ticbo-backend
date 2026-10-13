@@ -64,7 +64,12 @@ export class FiscalProfilesController {
     @CurrentPrincipal() principal: Principal,
     @Body(new ZodValidationPipe(createFiscalProfileBodySchema)) body: CreateFiscalProfileBody,
   ): Promise<FiscalProfileResponse> {
-    return toFiscalProfileResponse(await this.createProfile.execute(principal, body));
+    return toFiscalProfileResponse(
+      await this.createProfile.execute(principal, {
+        ...body,
+        defaultCfdiUse: body.defaultCfdiUse ?? null,
+      }),
+    );
   }
 
   @Patch(':id')

@@ -37,8 +37,8 @@ export const fiscalProfiles = pgTable(
     taxRegime: char('tax_regime', { length: 3 }).notNull(),
     // DomicilioFiscalReceptor
     postalCode: char('postal_code', { length: 5 }).notNull(),
-    // c_UsoCFDI used when the receipt does not call for another one
-    defaultCfdiUse: varchar('default_cfdi_use', { length: 4 }).notNull().default('G03'),
+    // c_UsoCFDI suggested for every receipt; null means the bot asks each time
+    defaultCfdiUse: varchar('default_cfdi_use', { length: 4 }),
     // Ticbo inbox typed into merchant portals, so the CFDI XML/PDF arrives to us
     invoiceEmail: varchar('invoice_email', { length: 254 }).notNull(),
     isDefault: boolean('is_default').notNull().default(false),

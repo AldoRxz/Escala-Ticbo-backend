@@ -43,6 +43,13 @@
       "when": 1791847748627,
       "tag": "0005_whatsapp_sender_label",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791850226288,
+      "tag": "0006_optional_default_cfdi_use",
+      "breakpoints": true
     }
   ]
 }
