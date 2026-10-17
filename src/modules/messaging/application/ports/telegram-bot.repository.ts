@@ -34,6 +34,7 @@ export interface NewTelegramSender {
 /** A linked sender, as the webhook sees it. */
 export interface ChatSender {
   id: string;
+  phone: string;
   label: string | null;
   defaultFiscalProfileId: string | null;
 }

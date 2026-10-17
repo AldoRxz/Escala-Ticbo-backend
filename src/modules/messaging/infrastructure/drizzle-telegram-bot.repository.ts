@@ -55,7 +55,12 @@ function toBot(row: BotRow, senders: SenderRow[]): TelegramBot {
 }
 
 function toChatSender(row: SenderRow): ChatSender {
-  return { id: row.id, label: row.label, defaultFiscalProfileId: row.defaultFiscalProfileId };
+  return {
+    id: row.id,
+    phone: row.phone,
+    label: row.label,
+    defaultFiscalProfileId: row.defaultFiscalProfileId,
+  };
 }
 
 function senderError(error: unknown): unknown {

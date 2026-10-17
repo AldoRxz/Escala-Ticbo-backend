@@ -89,3 +89,12 @@ export class TelegramUnavailableError extends AppError {
     super('Telegram did not answer. Try again in a few minutes.', options);
   }
 }
+
+export class WebhookSecretMismatchError extends AppError {
+  override readonly code = 'webhook_secret_mismatch';
+  override readonly category = 'forbidden';
+
+  constructor() {
+    super('The webhook request does not carry the secret of this bot.');
+  }
+}

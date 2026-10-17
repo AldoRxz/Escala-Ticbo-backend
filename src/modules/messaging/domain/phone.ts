@@ -31,3 +31,12 @@ export function dialablePhone(digits: string): string {
     ? MEXICO_COUNTRY_CODE + digits.slice(3)
     : digits;
 }
+
+/** For people to read: +52 55 1234 5678 for Mexico, +<digits> elsewhere. */
+export function formatPhone(digits: string): string {
+  const local = dialablePhone(digits);
+  if (local.length === 12 && local.startsWith(MEXICO_COUNTRY_CODE)) {
+    return `+52 ${local.slice(2, 4)} ${local.slice(4, 8)} ${local.slice(8)}`;
+  }
+  return `+${digits}`;
+}

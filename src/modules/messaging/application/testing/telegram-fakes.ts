@@ -178,6 +178,7 @@ function senderView(sender: StoredSender): TelegramSender {
 function chatView(sender: StoredSender): ChatSender {
   return {
     id: sender.id,
+    phone: sender.phone,
     label: sender.label,
     defaultFiscalProfileId: sender.defaultFiscalProfileId,
   };

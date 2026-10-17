@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { AppConfig } from '../../config/app-config.js';
+import { ReceiptsModule } from '../receipts/receipts.module.js';
 import { VaultModule } from '../vault/vault.module.js';
 import { WhatsAppChannelRepository } from './application/ports/whatsapp-channel.repository.js';
+import { HandleTelegramUpdateUseCase } from './application/use-cases/handle-telegram-update.use-case.js';
 import { ConnectWhatsAppChannelUseCase } from './application/use-cases/connect-whatsapp-channel.use-case.js';
 import { DisconnectWhatsAppChannelUseCase } from './application/use-cases/disconnect-whatsapp-channel.use-case.js';
 import { ListWhatsAppChannelsUseCase } from './application/use-cases/list-whatsapp-channels.use-case.js';
@@ -27,6 +29,7 @@ import { DrizzleTelegramBotRepository } from './infrastructure/drizzle-telegram-
 import { DrizzleWhatsAppChannelRepository } from './infrastructure/drizzle-whatsapp-channel.repository.js';
 import { FetchTelegramApi, TelegramApiSettings } from './infrastructure/fetch-telegram.api.js';
 import { TelegramBotsController } from './presentation/http/telegram-bots.controller.js';
+import { TelegramWebhookController } from './presentation/http/telegram-webhook.controller.js';
 import { WhatsAppChannelsController } from './presentation/http/whatsapp-channels.controller.js';
 import { WhatsAppWebhookController } from './presentation/http/whatsapp-webhook.controller.js';
 
@@ -35,8 +38,13 @@ import { WhatsAppWebhookController } from './presentation/http/whatsapp-webhook.
  * customers connect, their authorized senders and the providers' webhooks.
  */
 @Module({
-  imports: [VaultModule],
-  controllers: [WhatsAppChannelsController, WhatsAppWebhookController, TelegramBotsController],
+  imports: [VaultModule, ReceiptsModule],
+  controllers: [
+    WhatsAppChannelsController,
+    WhatsAppWebhookController,
+    TelegramBotsController,
+    TelegramWebhookController,
+  ],
   providers: [
     { provide: WhatsAppChannelRepository, useClass: DrizzleWhatsAppChannelRepository },
     { provide: TelegramBotRepository, useClass: DrizzleTelegramBotRepository },
@@ -71,6 +79,7 @@ import { WhatsAppWebhookController } from './presentation/http/whatsapp-webhook.
     AddTelegramSenderUseCase,
     UpdateTelegramSenderUseCase,
     RemoveTelegramSenderUseCase,
+    HandleTelegramUpdateUseCase,
   ],
 })
 export class MessagingModule {}
