@@ -38,7 +38,8 @@ Estado al 11 de octubre de 2026. Diseño general en [backend-design.md](./backen
 |---|---|
 | Sin llaves de AWS | GitHub Actions entra por OIDC; el rol de despliegue solo acepta la rama `main` de este repo |
 | Mínimo privilegio | El despliegue pasa por `ticbo-cloudformation-exec`, que solo toca recursos `ticbo-app-*` y no puede modificar los roles de despliegue |
-| Permissions boundary | Todo rol que creen los stacks queda limitado por `ticbo-app-workload-boundary` (logs, SSM, SQS, KMS) aunque la plantilla le asigne más |
+| Permissions boundary | Todo rol que creen los stacks queda limitado por `ticbo-app-workload-boundary` (logs, SSM, SQS, KMS y los archivos de clientes) aunque la plantilla le asigne más |
+| Archivos de clientes | Bucket `ticbo-files-*`: privado (bloqueo de acceso público y sin ACL), cifrado, solo HTTPS y retenido aunque se borre el stack. La Lambda solo puede leer, escribir y borrar bajo `accounts/*`; no puede cambiar la configuración del bucket |
 | Secretos de la plataforma | SSM Parameter Store `SecureString` (`/ticbo/prod/*`); el pipeline los inyecta enmascarados |
 | Costos | HTTP API con límite de 25 peticiones/s (ráfaga 50); alerta de presupuesto de 4 USD al mes |
 
@@ -58,8 +59,7 @@ Estado al 11 de octubre de 2026. Diseño general en [backend-design.md](./backen
 3. **MFA** en el usuario raíz de la cuenta principal de AWS, en tu usuario de IAM Identity Center y en tu cuenta de GitHub.
 4. **Dominio propio.** Hoy el sitio en Vercel reenvía `/api/*` a la API, así que la cookie de sesión es del mismo sitio y el login funciona sin dominio. Con dominio: canónico sin www, la API detrás del mismo proxy y el buzón de facturas en Cloudflare Email Routing.
 5. **Aviso de privacidad y términos** (LFPDPPP) antes de recibir clientes reales; definir la retención de fotos de tickets.
-6. **Bucket de archivos (Cloudflare R2).** Hasta que exista, la API funciona pero los bots contestan que no pueden guardar el ticket. Crear un bucket privado (por ejemplo `ticbo-files`) y un token de API de R2 con *Object Read & Write* solo sobre ese bucket, y guardar en SSM como `SecureString`: `/ticbo/prod/OBJECT_STORAGE_ENDPOINT` (`https://<id de cuenta>.r2.cloudflarestorage.com`), `/ticbo/prod/OBJECT_STORAGE_BUCKET`, `/ticbo/prod/OBJECT_STORAGE_ACCESS_KEY_ID` y `/ticbo/prod/OBJECT_STORAGE_SECRET_ACCESS_KEY`. El siguiente despliegue los toma.
-7. **Buzón `ticbomx@gmail.com`**: verificación en dos pasos, contraseña única y correo/teléfono de recuperación, sin usarlo para nada más. Recibirá facturas con datos fiscales de todos los clientes. Cuando se construya el módulo de facturación, generar una contraseña de aplicación y guardarla en SSM como `/ticbo/prod/INVOICE_MAILBOX_PASSWORD` (`SecureString`), nunca en el chat.
+6. **Buzón `ticbomx@gmail.com`**: verificación en dos pasos, contraseña única y correo/teléfono de recuperación, sin usarlo para nada más. Recibirá facturas con datos fiscales de todos los clientes. Cuando se construya el módulo de facturación, generar una contraseña de aplicación y guardarla en SSM como `/ticbo/prod/INVOICE_MAILBOX_PASSWORD` (`SecureString`), nunca en el chat.
 
 ## Riesgos aceptados por ahora
 

@@ -8,12 +8,12 @@ Estas son las tres decisiones de arranque que propuso el equipo de producto, tal
 
 > Guardar fotos de tickets, PDFs y XMLs en **Cloudflare R2** en lugar de S3 estándar te da compatibilidad S3 idéntica pero con **$0 costo de transferencia de datos de salida (egress fees)**.
 
-**Estado: adoptada.**
+**Estado: cambiada a S3 (octubre 2026).**
 
-- Fotos de tickets, XML y PDF van a R2, con la misma API que S3 (el adaptador usa el SDK de S3 apuntando al endpoint de R2), así que cambiar de proveedor sería cambiar configuración, no código.
-- El bucket es privado. La app y el bot entregan cada archivo con una URL firmada de vida corta, nunca con un enlace público.
-- Cloudflare Email Routing recibe los correos con CFDI que mandan los portales de los comercios y los deja directamente en R2, también sin costo.
-- Llaves de objeto por tenant (`accounts/<account_id>/receipts/<receipt_id>.jpg`), para poder borrar o exportar todo lo de un cliente.
+- Todo lo demás vive en AWS. Un bucket de S3 en la misma cuenta (`ticbo-files-*`, en `infra/bootstrap.yaml`) se alcanza con el rol de la Lambda: no hay llaves de otro proveedor que guardar, rotar o filtrar, y los permisos quedan en las mismas plantillas que el resto.
+- El ahorro de R2 está en la salida de datos. Hoy una foto sale solo cuando alguien la abre en el panel, y AWS incluye 100 GB de salida gratis al mes: en esta etapa no hay costo que ahorrar.
+- El adaptador habla la API de S3 firmada con SigV4, así que mudarse a R2 si la salida crece sería configuración, no código.
+- Se mantiene lo demás: bucket privado, nada público, y llaves de objeto por tenant (`accounts/<account_id>/receipts/<receipt_id>.jpg`) para poder borrar o exportar todo lo de un cliente.
 
 ## 2. Motor de base de datos y pooling
 

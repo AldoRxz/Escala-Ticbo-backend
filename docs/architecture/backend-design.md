@@ -24,7 +24,7 @@ Un punto que define la arquitectura: **Ticbo no timbra**. El CFDI lo emite el co
 
 | Restricción | Consecuencia en el diseño |
 |---|---|
-| Costo mínimo, pago solo por uso | Todo el cómputo en AWS Lambda; cola en SQS; nada encendido esperando tráfico. Sin Redis, sin balanceador, sin NAT Gateway. Archivos en Cloudflare R2 (sin cargos de salida). |
+| Costo mínimo, pago solo por uso | Todo el cómputo en AWS Lambda; cola en SQS; nada encendido esperando tráfico. Sin Redis, sin balanceador, sin NAT Gateway. Archivos en S3, en la misma cuenta de AWS. |
 | Multi-tenant B2B con datos fiscales | Un solo esquema con `account_id` y Row-Level Security de PostgreSQL: el aislamiento lo garantiza la base de datos, no solo el código. |
 | WhatsApp y procesos de 3 s a varios minutos | El webhook responde `200` de inmediato y todo lo demás ocurre en funciones asíncronas disparadas por la cola. |
 | Secretos de clientes (tokens de WhatsApp, e.firma/CSD) | Cifrado de sobre (*envelope encryption*) con una llave maestra fuera de la base de datos (variable protegida hoy, AWS KMS al desplegar); solo las funciones que los usan descifran. |
@@ -41,7 +41,7 @@ Un punto que define la arquitectura: **Ticbo no timbra**. El CFDI lo emite el co
   - Teléfonos autorizados por canal; en Telegram la persona se vincula compartiendo su propio contacto.
   - Respuestas del bot en un solo lugar (`chat-replies.ts`), iguales en los dos canales.
 - Módulo `receipts`: recibe la foto (JPEG, PNG o WebP, hasta 4 MB), la guarda y abre el ticket en `received` con el RFC del remitente (o el predeterminado) y su uso de CFDI sugerido. La API lista los tickets de la cuenta y entrega su foto.
-- Almacenamiento de archivos (`ObjectStorage`): Cloudflare R2 por la API de S3 en producción y una carpeta local en desarrollo. Sin la configuración del bucket, producción arranca igual y los bots avisan que no pueden guardar el ticket.
+- Almacenamiento de archivos (`ObjectStorage`): un bucket privado de S3 (`ticbo-files-<cuenta>-<región>`, creado por `infra/bootstrap.yaml`) al que la Lambda entra con su propio rol, sin llaves; una carpeta local en desarrollo. Las peticiones se firman con SigV4 (`aws4fetch`), sin el SDK de AWS en el paquete.
 - Módulo `vault`: cifrado de sobre AES-256-GCM con rotación de llaves.
 - Handler de AWS Lambda (`src/lambda.ts`) y empaquetado (`npm run build:lambda`), probado en la imagen oficial de Lambda con Node 24. Además del tráfico HTTP, atiende tareas programadas (`maintenance`, cada 6 horas).
 - Health checks, errores en formato RFC 9457 con errores por campo, configuración validada al arrancar.
@@ -55,15 +55,16 @@ Un punto que define la arquitectura: **Ticbo no timbra**. El CFDI lo emite el co
 flowchart LR
   subgraph Clientes
     WA[WhatsApp del usuario]
+    TGU[Telegram del usuario]
     WEB[App web<br/>app.ticbo.com]
   end
 
   subgraph Cloudflare
     CF[DNS · TLS · WAF<br/>rate limit en el borde]
-    R2[(R2<br/>fotos · XML · PDF)]
   end
 
   META[WhatsApp Cloud API<br/>Meta]
+  TG[Telegram Bot API]
   MAIL[Buzón de facturas<br/>ticbomx@gmail.com]
 
   subgraph AWS
@@ -72,6 +73,7 @@ flowchart LR
     SQS[[SQS<br/>colas + DLQ]]
     WORKER[Lambdas worker<br/>OCR · portales · validación]
     SCHED[EventBridge Scheduler<br/>tareas periódicas]
+    FILES[(S3<br/>fotos · XML · PDF)]
   end
 
   PG[(Supabase PostgreSQL<br/>vía Supavisor)]
@@ -79,14 +81,16 @@ flowchart LR
   SAT[Servicios SAT<br/>estado CFDI · lista 69-B]
 
   WA <--> META
+  TGU <--> TG
   META -- webhook --> CF --> GW --> API
+  TG -- webhook --> CF
   WEB --> CF
   API --> PG
-  API --> R2
+  API --> FILES
   API -- encola --> SQS --> WORKER
   SCHED --> WORKER
   WORKER --> PG
-  WORKER --> R2
+  WORKER --> FILES
   WORKER -- mensajes --> META
   WORKER -- navegador headless --> PORTALES
   PORTALES -- correo con CFDI --> MAIL
@@ -111,7 +115,7 @@ Todo el cómputo son funciones Lambda que salen del mismo código:
 ```mermaid
 flowchart TB
   P[presentation<br/>controladores HTTP, webhooks, DTOs Zod] --> A
-  I[infrastructure<br/>Drizzle, Argon2, JWT, Google, R2, SQS, KMS] --> A
+  I[infrastructure<br/>Drizzle, Argon2, JWT, Google, S3, SQS, KMS] --> A
   A[application<br/>casos de uso + puertos] --> D[domain<br/>reglas y tipos puros]
 ```
 
@@ -143,7 +147,7 @@ src/
     infrastructure/
       database/               Pool, Drizzle, esquema, TenantDatabase, migraciones, health
       http/                   filtro RFC 9457, ZodValidationPipe, rutas base
-      storage/                (pendiente) adaptador S3/R2
+      storage/                ObjectStorage: S3 y carpeta local
       queue/                  (pendiente) adaptador SQS
   modules/
     iam/                      identidad y acceso          ✅ implementado
@@ -223,8 +227,8 @@ erDiagram
 | `encrypted_secrets` | datos | Secretos cifrados (ver §7). |
 | `fiscal_profiles` | datos | RFC, razón social, régimen fiscal, código postal, uso de CFDI por defecto y buzón de Ticbo al que llegan los CFDI. CHECK de formato de RFC y CP. |
 | `fiscal_credentials` | datos | e.firma o CSD: certificado público y referencias a la llave privada y su contraseña en el vault. |
-| `receipts` | datos | El ticket: origen, id del mensaje (idempotencia), foto en R2, datos extraídos, estado del pipeline, intentos y último error. |
-| `invoices` | datos | El CFDI recibido: UUID fiscal, emisor, receptor, totales, llaves de XML/PDF en R2, estado ante el SAT y estado del emisor en la lista 69-B. |
+| `receipts` | datos | El ticket: origen, id del mensaje (idempotencia), foto en S3, datos extraídos, estado del pipeline, intentos y último error. |
+| `invoices` | datos | El CFDI recibido: UUID fiscal, emisor, receptor, totales, llaves de XML/PDF en S3, estado ante el SAT y estado del emisor en la lista 69-B. |
 
 ### Aislamiento entre tenants
 
@@ -459,23 +463,23 @@ sequenceDiagram
   API->>Q: receipt.ingest
   API-->>M: 200 OK (en milisegundos)
   W->>M: descarga la imagen
-  W->>W: guarda en R2 · OCR → comercio, folio, total, fecha
+  W->>W: guarda en S3 · OCR → comercio, folio, total, fecha
   W->>U: "Recibí tu ticket de Starbucks por $185.00, lo facturo a ABC010101XYZ"
   W->>P: navegador headless llena el portal con ticket + datos fiscales
   P->>E: correo con XML y PDF a ticbomx+clave@gmail.com
   W->>E: revisa el buzón (cada 5 min)
-  W->>W: guarda XML y PDF en R2 · los asocia al ticket
+  W->>W: guarda XML y PDF en S3 · los asocia al ticket
   W->>W: valida XML · estado en el SAT · emisor en lista 69-B
   W->>U: documentos XML y PDF
 ```
 
 | Trabajo | Qué hace | Reintentos |
 |---|---|---|
-| `receipt.ingest` | Descarga la imagen de Meta, la guarda en R2, crea `receipts` (idempotente por `source_message_id`) | 5, backoff exponencial |
+| `receipt.ingest` | Descarga la imagen de Meta o Telegram, la guarda en S3, crea `receipts` (idempotente por `source_message_id`) | 5, backoff exponencial |
 | `receipt.extract` | OCR o visión → comercio, RFC emisor, folio, fecha, total, sucursal; confianza por campo | 3 |
 | `receipt.match` | Busca el comercio en `merchants`; elige RFC receptor (remitente → perfil por defecto; si hay varios, pregunta en el chat) | — |
 | `invoice.request` | Pide la factura por el canal del comercio: el adaptador del portal (`merchants.adapter_key`) o un correo de solicitud (ver *Buzón de facturas*) | 3, luego `needs_review` |
-| `mailbox.poll` | Cada 5 minutos (EventBridge Scheduler) lee los correos nuevos del buzón, guarda XML/PDF en R2 y encola `invoice.collect` | el siguiente ciclo |
+| `mailbox.poll` | Cada 5 minutos (EventBridge Scheduler) lee los correos nuevos del buzón, guarda XML/PDF en S3 y encola `invoice.collect` | el siguiente ciclo |
 | `invoice.collect` | Asocia el CFDI recibido (por correo o descargado del portal) con su ticket | espera hasta 24 h |
 | `invoice.follow_up` | Recordatorio a los comercios que se piden por correo y no han contestado | 2 recordatorios, luego `needs_review` |
 | `invoice.validate` | Valida el XML (UUID, receptor correcto, totales), consulta el estado en el SAT y la lista 69-B del emisor | 5 |
@@ -529,12 +533,12 @@ Ticbo tiene un buzón propio para tres cosas: recibir los CFDI que mandan los co
 
 - `mailbox.poll` corre cada 5 minutos:
   - busca los correos sin procesar;
-  - guarda los adjuntos XML y PDF en R2;
+  - guarda los adjuntos XML y PDF en S3;
   - los marca con la etiqueta `ticbo/procesado` y los archiva.
 
   Ningún correo se borra antes de que su CFDI esté guardado.
 - **Se descartó la Gmail API**: leer el buzón requiere permisos *restringidos* de Google. En producción esos permisos exigen verificar la app y pasar una auditoría de seguridad anual, y en modo de prueba los tokens caducan cada 7 días.
-- **Límites de Gmail**: unos 500 correos enviados por día y 15 GB de almacenamiento. Alcanza para la etapa inicial, porque los adjuntos se archivan en R2.
+- **Límites de Gmail**: unos 500 correos enviados por día y 15 GB de almacenamiento. Alcanza para la etapa inicial, porque los adjuntos se archivan en S3.
 - **Credenciales**: en SSM, `/ticbo/prod/INVOICE_MAILBOX_USER` y `/ticbo/prod/INVOICE_MAILBOX_PASSWORD` (`SecureString`). Solo la función del buzón las lee.
 
 **Cuando haya dominio**, el buzón se cambia sin tocar los casos de uso, porque está detrás del puerto `InvoiceMailbox` (leer correos nuevos, enviar, etiquetar):
@@ -612,7 +616,7 @@ Nada queda encendido esperando tráfico. Cada pieza cobra por petición, por mil
 | Cola | SQS estándar con cola de mensajes muertos | Por millón de solicitudes; nivel gratuito permanente |
 | Tareas periódicas | EventBridge Scheduler | Por invocación; nivel gratuito amplio |
 | Base de datos | Supabase PostgreSQL. El plan gratuito se pausa tras una semana con poca actividad; la tarea `maintenance` escribe cada 6 horas para evitarlo. Pro al tener clientes reales | Cuota mensual fija: es el único costo fijo relevante |
-| Archivos | Cloudflare R2 | Por GB almacenado; **sin cargos de salida** |
+| Archivos | Amazon S3, bucket privado en la misma cuenta | Por GB almacenado y por petición; la salida a internet cabe en los 100 GB gratis al mes de AWS |
 | Correo (CFDI entrantes y solicitudes) | Gmail `ticbomx@gmail.com` por IMAP/SMTP mientras no haya dominio; después, Cloudflare Email Routing (entrada) y Amazon SES (salida) | Gratis (SES: centavos por cada mil correos) |
 | Secretos de clientes | AWS KMS (una llave, al desplegar) | ~1 USD al mes + por cada 10,000 operaciones |
 | Configuración de la plataforma | SSM Parameter Store (nivel estándar) | Gratis |
@@ -646,7 +650,7 @@ Una función que no ha recibido tráfico tarda en arrancar. AWS cobra también e
 ### Caché en el borde
 
 - Las respuestas de la API son privadas (`no-store`) y no se cachean.
-- Los archivos en R2 no son públicos: la API entrega URLs firmadas de vida corta (5 min) para cada XML/PDF/foto.
+- Los archivos en S3 no son públicos. Hoy la API entrega la foto de un ticket solo a miembros de su cuenta; para XML y PDF se usarán URLs firmadas de vida corta (5 min).
 - La landing y sus pantallas de acceso se sirven como sitio estático o con renderizado en el borde (Vercel o Cloudflare Pages).
 
 ### Cuándo cambiar algo
@@ -704,7 +708,7 @@ Las migraciones deben ser compatibles hacia atrás (expandir y luego contraer), 
 | 3 | Zod para entrada y configuración | class-validator | Un solo lenguaje de validación para HTTP y variables de entorno; tipos inferidos |
 | 4 | Esquema compartido + RLS | Esquema o base por tenant | Costo y operación; aislamiento garantizado por la base de datos |
 | 5 | SQS | pg-boss en Postgres; BullMQ + Redis | Pago por uso: no exige un proceso encendido consultando la cola; reintentos y DLQ nativos |
-| 6 | Cloudflare R2 | S3 estándar | Sin cargos de salida; API S3 compatible |
+| 6 | Amazon S3 en la misma cuenta | Cloudflare R2 | Todo vive en AWS: la Lambda entra con su rol, sin llaves de otro proveedor que guardar ni rotar. El ahorro de R2 (salida gratis) no pesa a este volumen. El adaptador habla la API de S3, así que cambiar sería configuración |
 | 7 | OAuth propio sobre el puerto `OAuthProvider` | Passport.js, Auth0/Supabase Auth | Sin sesiones de servidor; sin costo por usuario; vinculación de cuentas bajo nuestro control |
 | 8 | JWT de acceso HS256 + refresh opaco rotativo | Sesiones en servidor; JWT de larga vida | Verificación sin base de datos en cada petición, con revocación real en el refresh |
 | 9 | Argon2id | bcrypt | Resistente a GPU por costo de memoria; recomendado por OWASP |
