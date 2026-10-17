@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { normalizePhoneDigits, normalizeSenderLabel, validateCredentials } from './whatsapp.js';
+import { dialablePhone, normalizePhoneDigits, phoneVariants } from './phone.js';
+import { normalizeSenderLabel } from './sender.js';
+import { validateCredentials } from './whatsapp.js';
 
 const credentials = {
   phoneNumberId: ' 106540352242922 ',
@@ -63,5 +65,15 @@ describe('normalizeSenderLabel', () => {
     expect(normalizeSenderLabel('  Juan   ventas ')).toBe('Juan ventas');
     expect(normalizeSenderLabel('   ')).toBeNull();
     expect(normalizeSenderLabel(undefined)).toBeNull();
+  });
+});
+
+describe('phoneVariants', () => {
+  it('pairs Mexican mobiles with and without the old 1 after the country code', () => {
+    expect(phoneVariants('525512345678')).toEqual(['525512345678', '5215512345678']);
+    expect(phoneVariants('5215512345678')).toEqual(['5215512345678', '525512345678']);
+    expect(phoneVariants('14155550100')).toEqual(['14155550100']);
+    expect(dialablePhone('5215512345678')).toBe('525512345678');
+    expect(dialablePhone('14155550100')).toBe('14155550100');
   });
 });

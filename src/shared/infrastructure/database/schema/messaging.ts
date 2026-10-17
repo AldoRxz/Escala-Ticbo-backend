@@ -1,4 +1,5 @@
 import {
+  bigint,
   foreignKey,
   index,
   pgEnum,
@@ -7,7 +8,7 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { createdAt, primaryId, updatedAt } from './columns.js';
+import { createdAt, primaryId, timestamptz, updatedAt } from './columns.js';
 import { fiscalProfiles } from './fiscal.js';
 import { accounts, users } from './iam.js';
 import { encryptedSecrets } from './vault.js';
@@ -83,6 +84,77 @@ export const whatsappSenders = pgTable(
     index('whatsapp_senders_account_id_idx').on(t.accountId),
     foreignKey({
       name: 'whatsapp_senders_default_profile_fk',
+      columns: [t.defaultFiscalProfileId, t.accountId],
+      foreignColumns: [fiscalProfiles.id, fiscalProfiles.accountId],
+    }).onDelete('restrict'),
+  ],
+);
+
+export const telegramBotStatus = pgEnum('telegram_bot_status', ['active', 'disabled']);
+
+/**
+ * A Telegram bot the customer created with @BotFather. Ticbo registers its
+ * webhook itself, so there is nothing to paste back into Telegram.
+ */
+export const telegramBots = pgTable(
+  'telegram_bots',
+  {
+    id: primaryId(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    // Telegram's numeric id of the bot (the part of the token before the colon)
+    botUserId: bigint('bot_user_id', { mode: 'number' }).notNull(),
+    username: varchar('username', { length: 64 }).notNull(),
+    displayName: varchar('display_name', { length: 128 }).notNull(),
+    tokenSecretId: uuid('token_secret_id').notNull(),
+    // SHA-256 of the secret Telegram sends in X-Telegram-Bot-Api-Secret-Token
+    webhookSecretHash: varchar('webhook_secret_hash', { length: 64 }).notNull(),
+    status: telegramBotStatus('status').notNull().default('active'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex('telegram_bots_bot_user_id_key').on(t.botUserId),
+    index('telegram_bots_account_id_idx').on(t.accountId),
+    foreignKey({
+      name: 'telegram_bots_token_fk',
+      columns: [t.tokenSecretId, t.accountId],
+      foreignColumns: [encryptedSecrets.id, encryptedSecrets.accountId],
+    }).onDelete('restrict'),
+  ],
+);
+
+/**
+ * A phone allowed to send receipts to a bot. Telegram does not reveal phone
+ * numbers, so the person shares their contact with the bot once and that links
+ * their Telegram user to this row.
+ */
+export const telegramSenders = pgTable(
+  'telegram_senders',
+  {
+    id: primaryId(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    botId: uuid('bot_id')
+      .notNull()
+      .references(() => telegramBots.id, { onDelete: 'cascade' }),
+    // Country code and number, digits only
+    phone: varchar('phone', { length: 20 }).notNull(),
+    label: varchar('label', { length: 80 }),
+    defaultFiscalProfileId: uuid('default_fiscal_profile_id'),
+    // Set when the person shares their own contact with the bot
+    telegramUserId: bigint('telegram_user_id', { mode: 'number' }),
+    linkedAt: timestamptz('linked_at'),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('telegram_senders_bot_phone_key').on(t.botId, t.phone),
+    uniqueIndex('telegram_senders_bot_user_key').on(t.botId, t.telegramUserId),
+    index('telegram_senders_account_id_idx').on(t.accountId),
+    foreignKey({
+      name: 'telegram_senders_default_profile_fk',
       columns: [t.defaultFiscalProfileId, t.accountId],
       foreignColumns: [fiscalProfiles.id, fiscalProfiles.accountId],
     }).onDelete('restrict'),

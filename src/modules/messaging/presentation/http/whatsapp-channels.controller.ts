@@ -21,7 +21,7 @@ import {
   UpdateSenderUseCase,
 } from '../../application/use-cases/manage-senders.use-cases.js';
 import { RotateVerifyTokenUseCase } from '../../application/use-cases/rotate-verify-token.use-case.js';
-import { WebhookVerification } from '../../application/webhook-verification.js';
+import { WebhookVerification } from '../../application/webhooks.js';
 import {
   type ChannelResponse,
   type SenderResponse,

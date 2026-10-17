@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { WebhookVerificationFailedError } from '../errors.js';
 import { WhatsAppChannelRepository } from '../ports/whatsapp-channel.repository.js';
-import { WebhookVerification } from '../webhook-verification.js';
+import { WebhookVerification } from '../webhooks.js';
 
 export interface VerificationRequest {
   mode: string | undefined;

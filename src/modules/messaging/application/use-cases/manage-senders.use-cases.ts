@@ -3,17 +3,12 @@ import { InvalidInputError, type ValidationIssue } from '../../../../shared/doma
 import { newId } from '../../../../shared/domain/id.js';
 import { ACCOUNT_MANAGERS, requireRole } from '../../../iam/application/authorization.js';
 import type { Principal } from '../../../iam/application/principal.js';
-import {
-  normalizePhoneDigits,
-  normalizeSenderLabel,
-  type WhatsAppSender,
-} from '../../domain/whatsapp.js';
+import { normalizePhoneDigits } from '../../domain/phone.js';
+import { normalizeSenderLabel } from '../../domain/sender.js';
+import type { WhatsAppSender } from '../../domain/whatsapp.js';
 import { WhatsAppChannelNotFoundError, WhatsAppSenderNotFoundError } from '../errors.js';
-import {
-  type SenderChanges,
-  UnknownFiscalProfileError,
-  WhatsAppChannelRepository,
-} from '../ports/whatsapp-channel.repository.js';
+import { type SenderChanges, UnknownFiscalProfileError } from '../ports/senders.js';
+import { WhatsAppChannelRepository } from '../ports/whatsapp-channel.repository.js';
 
 export interface SenderInput {
   waId: string;

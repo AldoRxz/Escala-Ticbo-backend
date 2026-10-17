@@ -67,6 +67,11 @@ export interface InvoiceMailboxConfig {
   address: string;
 }
 
+export interface MessagingConfig {
+  /** Base URL of Telegram's Bot API (a fake server in tests). */
+  telegramApiUrl: string;
+}
+
 /**
  * Validated runtime configuration. Declared as an abstract class so Nest can
  * inject it by type; the value is a plain object built by `loadConfig`.
@@ -80,4 +85,5 @@ export abstract class AppConfig {
   abstract readonly auth: AuthConfig;
   abstract readonly vault: VaultConfig;
   abstract readonly invoiceMailbox: InvoiceMailboxConfig;
+  abstract readonly messaging: MessagingConfig;
 }

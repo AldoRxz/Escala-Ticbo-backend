@@ -44,3 +44,48 @@ export class WebhookVerificationFailedError extends AppError {
     super('The verify token does not match.');
   }
 }
+
+export class TelegramBotNotFoundError extends AppError {
+  override readonly code = 'telegram_bot_not_found';
+  override readonly category = 'not_found';
+
+  constructor() {
+    super('The Telegram bot is not connected to this account.');
+  }
+}
+
+export class TelegramBotAlreadyConnectedError extends AppError {
+  override readonly code = 'telegram_bot_already_connected';
+  override readonly category = 'conflict';
+
+  constructor() {
+    super('This Telegram bot is already connected to Ticbo.');
+  }
+}
+
+export class TelegramSenderNotFoundError extends AppError {
+  override readonly code = 'telegram_sender_not_found';
+  override readonly category = 'not_found';
+
+  constructor() {
+    super('The phone is not authorized on this bot.');
+  }
+}
+
+export class TelegramSenderAlreadyAuthorizedError extends AppError {
+  override readonly code = 'telegram_sender_already_authorized';
+  override readonly category = 'conflict';
+
+  constructor() {
+    super('This phone is already authorized on this bot.');
+  }
+}
+
+export class TelegramUnavailableError extends AppError {
+  override readonly code = 'telegram_unavailable';
+  override readonly category = 'unavailable';
+
+  constructor(options?: ErrorOptions) {
+    super('Telegram did not answer. Try again in a few minutes.', options);
+  }
+}

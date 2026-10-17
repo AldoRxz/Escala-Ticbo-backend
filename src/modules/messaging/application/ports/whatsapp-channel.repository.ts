@@ -3,6 +3,7 @@ import type {
   WhatsAppChannelStatus,
   WhatsAppSender,
 } from '../../domain/whatsapp.js';
+import type { SenderChanges } from './senders.js';
 
 export interface NewChannel {
   id: string;
@@ -37,14 +38,6 @@ export interface NewSender {
   label: string | null;
   defaultFiscalProfileId: string | null;
 }
-
-export interface SenderChanges {
-  label?: string | null;
-  defaultFiscalProfileId?: string | null;
-}
-
-/** Signals a default RFC that does not exist in the account. */
-export class UnknownFiscalProfileError extends Error {}
 
 /**
  * WhatsApp channels and their senders. These tables are routing data read

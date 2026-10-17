@@ -50,6 +50,13 @@
       "when": 1791850226288,
       "tag": "0006_optional_default_cfdi_use",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792198474635,
+      "tag": "0007_telegram_bots",
+      "breakpoints": true
     }
   ]
 }

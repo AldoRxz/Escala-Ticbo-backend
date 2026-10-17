@@ -10,7 +10,7 @@ import {
   type WhatsAppChannel,
 } from '../../domain/whatsapp.js';
 import { WhatsAppChannelRepository } from '../ports/whatsapp-channel.repository.js';
-import { WebhookVerification } from '../webhook-verification.js';
+import { WebhookVerification } from '../webhooks.js';
 
 export interface ConnectedChannel {
   channel: WhatsAppChannel;

@@ -1,6 +1,7 @@
 export const SECRET_KINDS = [
   'whatsapp_access_token',
   'whatsapp_app_secret',
+  'telegram_bot_token',
   'fiel_private_key',
   'fiel_password',
   'csd_private_key',

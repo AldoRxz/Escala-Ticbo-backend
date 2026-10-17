@@ -12,17 +12,43 @@ import {
 } from './application/use-cases/manage-senders.use-cases.js';
 import { RotateVerifyTokenUseCase } from './application/use-cases/rotate-verify-token.use-case.js';
 import { VerifyWebhookUseCase } from './application/use-cases/verify-webhook.use-case.js';
-import { WebhookSettings, WebhookVerification } from './application/webhook-verification.js';
+import { TelegramApi } from './application/ports/telegram-api.js';
+import { TelegramBotRepository } from './application/ports/telegram-bot.repository.js';
+import {
+  AddTelegramSenderUseCase,
+  ConnectTelegramBotUseCase,
+  DisconnectTelegramBotUseCase,
+  ListTelegramBotsUseCase,
+  RemoveTelegramSenderUseCase,
+  UpdateTelegramSenderUseCase,
+} from './application/use-cases/telegram-bots.use-cases.js';
+import { TelegramWebhooks, WebhookSettings, WebhookVerification } from './application/webhooks.js';
+import { DrizzleTelegramBotRepository } from './infrastructure/drizzle-telegram-bot.repository.js';
 import { DrizzleWhatsAppChannelRepository } from './infrastructure/drizzle-whatsapp-channel.repository.js';
+import { FetchTelegramApi, TelegramApiSettings } from './infrastructure/fetch-telegram.api.js';
+import { TelegramBotsController } from './presentation/http/telegram-bots.controller.js';
 import { WhatsAppChannelsController } from './presentation/http/whatsapp-channels.controller.js';
 import { WhatsAppWebhookController } from './presentation/http/whatsapp-webhook.controller.js';
 
-/** WhatsApp numbers customers connect, their authorized senders and Meta's webhook. */
+/**
+ * The chat channels receipts arrive through: WhatsApp numbers and Telegram bots
+ * customers connect, their authorized senders and the providers' webhooks.
+ */
 @Module({
   imports: [VaultModule],
-  controllers: [WhatsAppChannelsController, WhatsAppWebhookController],
+  controllers: [WhatsAppChannelsController, WhatsAppWebhookController, TelegramBotsController],
   providers: [
     { provide: WhatsAppChannelRepository, useClass: DrizzleWhatsAppChannelRepository },
+    { provide: TelegramBotRepository, useClass: DrizzleTelegramBotRepository },
+    {
+      provide: TelegramApiSettings,
+      inject: [AppConfig],
+      useFactory: (config: AppConfig): TelegramApiSettings => ({
+        baseUrl: config.messaging.telegramApiUrl,
+      }),
+    },
+    { provide: TelegramApi, useClass: FetchTelegramApi },
+    TelegramWebhooks,
     {
       provide: WebhookSettings,
       inject: [AppConfig],
@@ -39,6 +65,12 @@ import { WhatsAppWebhookController } from './presentation/http/whatsapp-webhook.
     AddSenderUseCase,
     UpdateSenderUseCase,
     RemoveSenderUseCase,
+    ListTelegramBotsUseCase,
+    ConnectTelegramBotUseCase,
+    DisconnectTelegramBotUseCase,
+    AddTelegramSenderUseCase,
+    UpdateTelegramSenderUseCase,
+    RemoveTelegramSenderUseCase,
   ],
 })
 export class MessagingModule {}

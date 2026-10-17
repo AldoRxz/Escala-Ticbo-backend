@@ -16,14 +16,13 @@ import {
   WhatsAppNumberAlreadyConnectedError,
   WhatsAppSenderAlreadyAuthorizedError,
 } from '../application/errors.js';
-import {
-  type NewChannel,
-  type NewSender,
-  type RemovedChannel,
-  type SenderChanges,
-  UnknownFiscalProfileError,
-  type WebhookChannel,
-  type WhatsAppChannelRepository,
+import { type SenderChanges, UnknownFiscalProfileError } from '../application/ports/senders.js';
+import type {
+  NewChannel,
+  NewSender,
+  RemovedChannel,
+  WebhookChannel,
+  WhatsAppChannelRepository,
 } from '../application/ports/whatsapp-channel.repository.js';
 import type { WhatsAppChannel, WhatsAppSender } from '../domain/whatsapp.js';
 

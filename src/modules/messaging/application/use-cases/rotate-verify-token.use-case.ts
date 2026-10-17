@@ -3,7 +3,7 @@ import { ACCOUNT_MANAGERS, requireRole } from '../../../iam/application/authoriz
 import type { Principal } from '../../../iam/application/principal.js';
 import { WhatsAppChannelNotFoundError } from '../errors.js';
 import { WhatsAppChannelRepository } from '../ports/whatsapp-channel.repository.js';
-import { WebhookVerification } from '../webhook-verification.js';
+import { WebhookVerification } from '../webhooks.js';
 
 /** A new verify token, for when the first one was lost before registering the webhook. */
 @Injectable()

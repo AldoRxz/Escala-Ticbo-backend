@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { SENDER_LABEL_MAX_LENGTH, validateCredentials } from '../../domain/whatsapp.js';
+import { SENDER_LABEL_MAX_LENGTH } from '../../domain/sender.js';
+import { validateCredentials } from '../../domain/whatsapp.js';
 
 // Hard caps on raw input size; the domain rules decide what is valid.
 const text = (max: number) => z.string().trim().min(1).max(max);

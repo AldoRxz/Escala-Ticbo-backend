@@ -1,4 +1,5 @@
 import type { ValidationIssue } from '../../../shared/domain/app-error.js';
+import { normalizePhoneDigits } from './phone.js';
 
 export type WhatsAppChannelStatus = 'pending_verification' | 'active' | 'disabled';
 
@@ -25,26 +26,12 @@ export interface WhatsAppSender {
   readonly createdAt: Date;
 }
 
-export const SENDER_LABEL_MAX_LENGTH = 80;
-
 export interface ChannelCredentials {
   phoneNumberId: string;
   businessAccountId: string;
   displayPhoneNumber: string;
   accessToken: string;
   appSecret: string;
-}
-
-const MEXICO_COUNTRY_CODE = '52';
-
-/**
- * Digits with the country code. Ten digits are a Mexican number typed without it.
- * Null when it cannot be a phone number (E.164 allows up to 15 digits).
- */
-export function normalizePhoneDigits(input: string): string | null {
-  const digits = input.replace(/\D/g, '');
-  const full = digits.length === 10 ? MEXICO_COUNTRY_CODE + digits : digits;
-  return full.length >= 11 && full.length <= 15 ? full : null;
 }
 
 const issue = (path: string, code: string, message: string): ValidationIssue => ({
@@ -100,10 +87,4 @@ export function validateCredentials(
       appSecret,
     },
   };
-}
-
-/** Trims the label; an empty one means "no label". */
-export function normalizeSenderLabel(input: string | null | undefined): string | null {
-  const label = input?.trim().replace(/\s+/g, ' ') ?? '';
-  return label === '' ? null : label.slice(0, SENDER_LABEL_MAX_LENGTH);
 }

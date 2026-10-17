@@ -78,6 +78,7 @@ const envSchema = z
     VAULT_KEYS: vaultKeys,
     // Inbox the fiscal profiles' plus-address aliases point to (docs: Buzón de facturas).
     INVOICE_MAILBOX_ADDRESS: z.email().default('ticbomx@gmail.com'),
+    TELEGRAM_API_URL: httpUrl.default('https://api.telegram.org'),
   })
   .superRefine((env, ctx) => {
     if (Boolean(env.GOOGLE_CLIENT_ID) !== Boolean(env.GOOGLE_CLIENT_SECRET)) {
@@ -177,6 +178,9 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     invoiceMailbox: {
       address: env.INVOICE_MAILBOX_ADDRESS.toLowerCase(),
+    },
+    messaging: {
+      telegramApiUrl: env.TELEGRAM_API_URL.replace(/\/+$/, ''),
     },
   };
 }

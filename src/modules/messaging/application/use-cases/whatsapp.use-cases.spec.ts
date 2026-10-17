@@ -9,7 +9,7 @@ import {
   WhatsAppSenderAlreadyAuthorizedError,
 } from '../errors.js';
 import { FakeSecretVault, InMemoryWhatsAppChannelRepository } from '../testing/fakes.js';
-import { WebhookVerification } from '../webhook-verification.js';
+import { WebhookVerification } from '../webhooks.js';
 import { ConnectWhatsAppChannelUseCase } from './connect-whatsapp-channel.use-case.js';
 import { DisconnectWhatsAppChannelUseCase } from './disconnect-whatsapp-channel.use-case.js';
 import { AddSenderUseCase, RemoveSenderUseCase } from './manage-senders.use-cases.js';

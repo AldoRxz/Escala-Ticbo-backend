@@ -5,11 +5,11 @@ import {
   WhatsAppNumberAlreadyConnectedError,
   WhatsAppSenderAlreadyAuthorizedError,
 } from '../errors.js';
+import type { SenderChanges } from '../ports/senders.js';
 import type {
   NewChannel,
   NewSender,
   RemovedChannel,
-  SenderChanges,
   WebhookChannel,
   WhatsAppChannelRepository,
 } from '../ports/whatsapp-channel.repository.js';
@@ -155,6 +155,14 @@ export class FakeSecretVault {
   remove(_accountId: string, secretId: string): Promise<void> {
     this.secrets.delete(secretId);
     return Promise.resolve();
+  }
+
+  reveal(accountId: string, secretId: string): Promise<Buffer> {
+    const secret = this.secrets.get(secretId);
+    if (!secret || secret.accountId !== accountId) {
+      return Promise.reject(new Error(`No secret ${secretId} in account ${accountId}`));
+    }
+    return Promise.resolve(Buffer.from(secret.value, 'utf8'));
   }
 
   asVault(): SecretVault {
