@@ -20,7 +20,7 @@ import { merchants } from './merchants.js';
 
 // Tenant data (row-level security).
 
-export const receiptSource = pgEnum('receipt_source', ['whatsapp', 'web', 'email']);
+export const receiptSource = pgEnum('receipt_source', ['whatsapp', 'web', 'email', 'telegram']);
 
 /** Pipeline state of a ticket, from the photo to the CFDI. */
 export const receiptStatus = pgEnum('receipt_status', [
@@ -45,8 +45,11 @@ export const receipts = pgTable(
       onDelete: 'set null',
     }),
     source: receiptSource('source').notNull(),
-    // WhatsApp message id: idempotency key for webhook retries
+    // Chat message id (WhatsApp wamid, Telegram bot:chat:message): idempotency key for webhook retries
     sourceMessageId: varchar('source_message_id', { length: 128 }),
+    // Who sent it from the chat, as the account named the phone when it arrived
+    senderPhone: varchar('sender_phone', { length: 20 }),
+    senderLabel: varchar('sender_label', { length: 80 }),
     status: receiptStatus('status').notNull().default('received'),
     imageObjectKey: text('image_object_key').notNull(),
     merchantId: uuid('merchant_id').references(() => merchants.id, { onDelete: 'set null' }),

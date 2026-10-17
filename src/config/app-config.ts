@@ -67,6 +67,20 @@ export interface InvoiceMailboxConfig {
   address: string;
 }
 
+/** Where ticket photos and CFDI files are kept. */
+export type StorageConfig =
+  | { driver: 'filesystem'; directory: string }
+  | {
+      driver: 's3';
+      endpoint: string;
+      bucket: string;
+      region: string;
+      accessKeyId: string;
+      secretAccessKey: string;
+    }
+  /** Production before the bucket exists: receipts cannot be stored yet. */
+  | { driver: 'none' };
+
 export interface MessagingConfig {
   /** Base URL of Telegram's Bot API (a fake server in tests). */
   telegramApiUrl: string;
@@ -86,4 +100,5 @@ export abstract class AppConfig {
   abstract readonly vault: VaultConfig;
   abstract readonly invoiceMailbox: InvoiceMailboxConfig;
   abstract readonly messaging: MessagingConfig;
+  abstract readonly storage: StorageConfig;
 }

@@ -110,9 +110,12 @@ jobs:
               --query Parameter.Value --output text 2>/dev/null || true
           }
           for name in DATABASE_URL DATABASE_MIGRATION_URL JWT_ACCESS_SECRET COOKIE_SECRET VAULT_KEYS \
-                      GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET; do
+                      GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET \
+                      OBJECT_STORAGE_ENDPOINT OBJECT_STORAGE_BUCKET \
+                      OBJECT_STORAGE_ACCESS_KEY_ID OBJECT_STORAGE_SECRET_ACCESS_KEY; do
             value="$(read_parameter "$name")"
-            case "$name" in GOOGLE_*) ;; *) [ -n "$value" ] || { echo "::error::Missing /ticbo/prod/$name"; exit 1; } ;; esac
+            # Google sign-in and the R2 bucket are optional; the rest is required.
+            case "$name" in GOOGLE_*|OBJECT_STORAGE_*) ;; *) [ -n "$value" ] || { echo "::error::Missing /ticbo/prod/$name"; exit 1; } ;; esac
             [ -n "$value" ] && echo "::add-mask::$value"
             echo "$name=$value" >> "$GITHUB_ENV"
           done
@@ -153,7 +156,11 @@ jobs:
               "CookieSecret=$COOKIE_SECRET" \
               "VaultKeys=$VAULT_KEYS" \
               "GoogleClientId=$GOOGLE_CLIENT_ID" \
-              "GoogleClientSecret=$GOOGLE_CLIENT_SECRET"
+              "GoogleClientSecret=$GOOGLE_CLIENT_SECRET" \
+              "ObjectStorageEndpoint=$OBJECT_STORAGE_ENDPOINT" \
+              "ObjectStorageBucket=$OBJECT_STORAGE_BUCKET" \
+              "ObjectStorageAccessKeyId=$OBJECT_STORAGE_ACCESS_KEY_ID" \
+              "ObjectStorageSecretAccessKey=$OBJECT_STORAGE_SECRET_ACCESS_KEY"
 
       - name: Smoke test
         run: |

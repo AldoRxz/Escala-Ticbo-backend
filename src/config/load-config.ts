@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { z } from 'zod';
 import { API_BASE_PATH } from '../shared/infrastructure/http/api-path.js';
-import type { AppConfig } from './app-config.js';
+import type { AppConfig, StorageConfig } from './app-config.js';
 
 const httpUrl = z.url({ protocol: /^https?$/ });
 const booleanString = z.enum(['true', 'false']).transform((value) => value === 'true');
@@ -79,6 +79,14 @@ const envSchema = z
     // Inbox the fiscal profiles' plus-address aliases point to (docs: Buzón de facturas).
     INVOICE_MAILBOX_ADDRESS: z.email().default('ticbomx@gmail.com'),
     TELEGRAM_API_URL: httpUrl.default('https://api.telegram.org'),
+    // S3-compatible bucket (Cloudflare R2). Without it, files go to a local
+    // folder outside production and nowhere in production.
+    OBJECT_STORAGE_ENDPOINT: z.url({ protocol: /^https?$/ }).optional(),
+    OBJECT_STORAGE_BUCKET: z.string().min(3).max(63).optional(),
+    OBJECT_STORAGE_REGION: z.string().min(1).default('auto'),
+    OBJECT_STORAGE_ACCESS_KEY_ID: z.string().min(1).optional(),
+    OBJECT_STORAGE_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+    OBJECT_STORAGE_DIR: z.string().min(1).default('.data/objects'),
   })
   .superRefine((env, ctx) => {
     if (Boolean(env.GOOGLE_CLIENT_ID) !== Boolean(env.GOOGLE_CLIENT_SECRET)) {
@@ -86,6 +94,20 @@ const envSchema = z
         code: 'custom',
         path: ['GOOGLE_CLIENT_ID'],
         message: 'GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set together',
+      });
+    }
+    const bucketSettings = [
+      env.OBJECT_STORAGE_ENDPOINT,
+      env.OBJECT_STORAGE_BUCKET,
+      env.OBJECT_STORAGE_ACCESS_KEY_ID,
+      env.OBJECT_STORAGE_SECRET_ACCESS_KEY,
+    ];
+    if (bucketSettings.some(Boolean) && !bucketSettings.every(Boolean)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['OBJECT_STORAGE_ENDPOINT'],
+        message:
+          'OBJECT_STORAGE_ENDPOINT, _BUCKET, _ACCESS_KEY_ID and _SECRET_ACCESS_KEY must be set together',
       });
     }
     if (env.NODE_ENV === 'production' && !env.API_PUBLIC_URL.startsWith('https://')) {
@@ -182,5 +204,28 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     messaging: {
       telegramApiUrl: env.TELEGRAM_API_URL.replace(/\/+$/, ''),
     },
+    storage: storageOf(env),
   };
+}
+
+function storageOf(env: z.infer<typeof envSchema>): StorageConfig {
+  if (
+    env.OBJECT_STORAGE_ENDPOINT &&
+    env.OBJECT_STORAGE_BUCKET &&
+    env.OBJECT_STORAGE_ACCESS_KEY_ID &&
+    env.OBJECT_STORAGE_SECRET_ACCESS_KEY
+  ) {
+    return {
+      driver: 's3',
+      endpoint: env.OBJECT_STORAGE_ENDPOINT.replace(/\/+$/, ''),
+      bucket: env.OBJECT_STORAGE_BUCKET,
+      region: env.OBJECT_STORAGE_REGION,
+      accessKeyId: env.OBJECT_STORAGE_ACCESS_KEY_ID,
+      secretAccessKey: env.OBJECT_STORAGE_SECRET_ACCESS_KEY,
+    };
+  }
+  // A Lambda's disk is temporary: a folder there would lose every photo.
+  return env.NODE_ENV === 'production'
+    ? { driver: 'none' }
+    : { driver: 'filesystem', directory: env.OBJECT_STORAGE_DIR };
 }

@@ -1,6 +1,9 @@
 # dependencies
 node_modules/
 
+# local files (development object storage)
+.data/
+
 # build
 dist/
 dist-lambda/

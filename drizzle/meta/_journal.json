@@ -57,6 +57,13 @@
       "when": 1792198474635,
       "tag": "0007_telegram_bots",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792199114497,
+      "tag": "0008_receipts_from_chats",
+      "breakpoints": true
     }
   ]
 }

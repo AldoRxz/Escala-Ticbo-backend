@@ -7,6 +7,7 @@ import { FiscalModule } from './modules/fiscal/fiscal.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { IamModule } from './modules/iam/iam.module.js';
 import { MessagingModule } from './modules/messaging/messaging.module.js';
+import { ReceiptsModule } from './modules/receipts/receipts.module.js';
 import { JwtAuthGuard } from './modules/iam/presentation/http/jwt-auth.guard.js';
 import { VaultModule } from './modules/vault/vault.module.js';
 import { DatabaseModule } from './shared/infrastructure/database/database.module.js';
@@ -32,6 +33,7 @@ export class AppModule {
         IamModule,
         VaultModule,
         FiscalModule,
+        ReceiptsModule,
         MessagingModule,
       ],
       providers: [
