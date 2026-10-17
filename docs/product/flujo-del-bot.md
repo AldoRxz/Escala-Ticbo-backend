@@ -1,4 +1,4 @@
-# Flujo del bot de WhatsApp
+# Flujo del bot (WhatsApp y Telegram)
 
 Qué hace Ticbo desde que el cliente se da de alta hasta que recibe su factura. El diseño técnico está en [backend-design.md](../architecture/backend-design.md#6-pipeline-asíncrono-de-la-foto-al-cfdi).
 
@@ -23,8 +23,10 @@ En la app web (`app.ticbo.com`), el dueño de la cuenta:
    - Uso de CFDI por defecto (por ejemplo, G03 Gastos en general)
 
    Ticbo le asigna a cada perfil un correo propio. Ese es el correo que se captura en los portales, para que el XML y el PDF le lleguen a Ticbo. Mientras no haya dominio es un alias del buzón de Ticbo (`ticbomx+k7m3p9@gmail.com`); con dominio será algo como `abc010101xyz@facturas.ticbo.com`. Ver [§5](#5-el-correo-de-ticbo).
-3. **Conecta su WhatsApp Business**: captura las credenciales de su app de Meta (*phone number id*, *WhatsApp Business Account id*, token de acceso y *app secret*). Ticbo las guarda cifradas y le muestra la URL del webhook y el *verify token* que debe pegar en Meta.
-4. **Autoriza los teléfonos** que pueden mandar tickets (él mismo, sus empleados en campo) y elige el RFC por defecto de cada uno.
+3. **Conecta un canal** en *Canales*; puede conectar los dos:
+   - **Bot de Telegram**, lo más rápido: crea un bot con @BotFather (`/newbot`) y pega su token. Ticbo lo valida con Telegram, lo guarda cifrado y registra el webhook por su cuenta: no hay que copiar nada de regreso.
+   - **WhatsApp Business**: captura las credenciales de su app de Meta (*phone number id*, *WhatsApp Business Account id*, token de acceso y *app secret*). Ticbo las guarda cifradas y le muestra la URL del webhook y el *verify token* que debe pegar en Meta.
+4. **Autoriza los teléfonos** que pueden mandar tickets (él mismo, sus empleados en campo) y elige el RFC por defecto de cada uno. En Telegram, cada persona abre el enlace del bot, toca *Iniciar* y comparte su número con un botón; Telegram confirma que el número es suyo y desde ese momento sus fotos se reciben. El panel muestra quién ya lo hizo.
 
 ## 2. Conversación típica
 
@@ -56,8 +58,8 @@ Empleado → 2
 
 | # | Paso | Estado del ticket |
 |---|---|---|
-| 1 | Llega la foto por el webhook de WhatsApp. Ticbo verifica que el mensaje viene de Meta y que el teléfono está autorizado, guarda el ticket y responde a Meta de inmediato. | `received` |
-| 2 | Se descarga la imagen, se guarda en R2 y se leen los datos del ticket: comercio, RFC emisor, folio o número de ticket, sucursal, fecha y total. | `extracting` |
+| 1 | Llega la foto por el webhook de WhatsApp o de Telegram. Ticbo verifica que el mensaje viene de Meta (firma) o de Telegram (token secreto) y que el teléfono está autorizado, guarda la foto y el ticket, y confirma en el chat a qué RFC lo va a facturar. | `received` |
+| 2 | Se leen los datos del ticket: comercio, RFC emisor, folio o número de ticket, sucursal, fecha y total. | `extracting` |
 | 3 | Se busca al comercio en el catálogo de portales y se elige el RFC receptor. Se confirma al usuario lo que se va a facturar. | `requesting_invoice` |
 | 4 | Un navegador automatizado entra al portal del comercio (por ejemplo, el de Starbucks), captura los datos del ticket y del perfil fiscal, y pide la factura con el correo de Ticbo del perfil. Si el comercio no tiene portal, Ticbo le manda un correo de solicitud. | `requesting_invoice` |
 | 5 | Ticbo revisa su buzón cada 5 minutos y descarga el XML y el PDF que mandó el comercio (o los descarga del portal si lo permite). | `awaiting_cfdi` |
@@ -77,7 +79,8 @@ Cualquier paso que no se puede resolver solo termina en `needs_review` (lo revis
 | Portal caído, cambiado o con CAPTCHA | Reintenta con espera creciente; si sigue fallando, pasa a revisión humana y avisa del retraso. |
 | CFDI con datos incorrectos | Si el receptor o el total no coinciden, no lo entrega como válido y lo manda a revisión. |
 | Emisor en la lista 69-B (EFOS) | Entrega el CFDI con una advertencia: deducirlo es riesgoso. |
-| Teléfono no autorizado | Responde que el número no está registrado y no procesa nada. |
+| Teléfono no autorizado | Responde que el número no está registrado y no procesa nada. En Telegram, primero le pide compartir su número; si comparte el contacto de otra persona, no lo acepta. |
+| Archivo que no es foto (PDF, audio) | Contesta que por ahora solo lee fotos de tickets. |
 | Límite del plan alcanzado | Avisa al usuario y al dueño de la cuenta; no factura hasta el siguiente periodo o un cambio de plan. |
 | La factura tarda más de 24 horas | WhatsApp solo permite mensajes libres 24 horas después del último mensaje del usuario; la entrega se hace con una plantilla aprobada de "tu factura está lista". |
 | El comercio factura solo por correo | Ticbo le manda la solicitud desde su buzón y le da seguimiento (§5). |

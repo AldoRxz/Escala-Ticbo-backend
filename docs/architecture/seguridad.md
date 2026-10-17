@@ -19,13 +19,15 @@ Estado al 11 de octubre de 2026. Diseño general en [backend-design.md](./backen
 
 | Control | Detalle |
 |---|---|
-| Aislamiento entre clientes | Row-Level Security en las 15 tablas. La API usa `ticbo_app`, que no es dueño de las tablas ni puede saltarse RLS; los datos de cliente solo se ven dentro de una transacción con su `account_id`, y sin él no se ve nada |
+| Aislamiento entre clientes | Row-Level Security en las 17 tablas. La API usa `ticbo_app`, que no es dueño de las tablas ni puede saltarse RLS; los datos de cliente solo se ven dentro de una transacción con su `account_id`, y sin él no se ve nada |
 | Integridad entre clientes | Llaves foráneas compuestas con `account_id`: una fila no puede apuntar a datos de otro cliente |
 | Supabase | Data API apagada; `anon` y `authenticated` sin ningún permiso (migración `0002`) |
 | Conexión | TLS verificado contra la raíz de Supabase (`certs/supabase-root-2021.crt`); `statement_timeout` de 10 s |
 | Secretos de clientes | Cifrado de sobre AES-256-GCM, llave maestra fuera de la base (`VAULT_KEYS` en SSM; KMS después); el texto cifrado queda atado a su cuenta y tipo |
-| WhatsApp | El token de acceso y el *app secret* de cada número van al vault y nunca se devuelven por la API. Del *verify token* del webhook solo se guarda su SHA-256 (se muestra una vez) y se compara en tiempo constante |
-| Roles dentro de la cuenta | Solo owner y admin dan de alta, editan o borran RFC y números de WhatsApp; cualquier miembro consulta. La cuenta activa sale siempre del token firmado, nunca de la URL ni del cuerpo |
+| WhatsApp | El token de acceso y el *app secret* de cada número van al vault y nunca se devuelven por la API. Del *verify token* del webhook solo se guarda su SHA-256 (se muestra una vez) y se compara en tiempo constante. Cada `POST` de Meta se valida con `X-Hub-Signature-256` (HMAC-SHA256 con el *app secret*) sobre los bytes exactos del cuerpo; sin firma válida, `403` |
+| Telegram | El token del bot va al vault. Ticbo registra el webhook con un `secret_token` aleatorio del que solo guarda el SHA-256; una actualización sin ese encabezado recibe `403`. Un remitente se vincula solo al compartir **su propio** contacto (`contact.user_id` igual al remitente): reenviar la tarjeta de otra persona no da acceso |
+| Fotos de tickets | Solo JPEG, PNG y WebP reconocidos por sus primeros bytes (no por lo que dice el remitente), hasta 4 MB. Van a un bucket privado bajo `accounts/<account_id>/`; la API las entrega solo a miembros de esa cuenta, con `nosniff`. El token de WhatsApp solo se manda a dominios de Meta al descargar medios |
+| Roles dentro de la cuenta | Solo owner y admin dan de alta, editan o borran RFC, números de WhatsApp y bots de Telegram; cualquier miembro consulta. La cuenta activa sale siempre del token firmado, nunca de la URL ni del cuerpo |
 | Sesiones vencidas | Una tarea programada borra cada 6 horas los refresh tokens vencidos y los contadores de intentos de login ya sin efecto |
 | Respaldos | `pg_dump` diario a S3 (`ticbo-db-backups-*`): bucket privado, cifrado, versionado, 35 días. El rol del respaldo solo puede subir archivos; no puede leer ni borrar |
 | Logs | Sin query strings (códigos OAuth), sin cuerpos de petición y con los parámetros SQL redactados (correos, hashes). Retención de 14 días |
@@ -56,7 +58,8 @@ Estado al 11 de octubre de 2026. Diseño general en [backend-design.md](./backen
 3. **MFA** en el usuario raíz de la cuenta principal de AWS, en tu usuario de IAM Identity Center y en tu cuenta de GitHub.
 4. **Dominio propio.** Hoy el sitio en Vercel reenvía `/api/*` a la API, así que la cookie de sesión es del mismo sitio y el login funciona sin dominio. Con dominio: canónico sin www, la API detrás del mismo proxy y el buzón de facturas en Cloudflare Email Routing.
 5. **Aviso de privacidad y términos** (LFPDPPP) antes de recibir clientes reales; definir la retención de fotos de tickets.
-6. **Buzón `ticbomx@gmail.com`**: verificación en dos pasos, contraseña única y correo/teléfono de recuperación, sin usarlo para nada más. Recibirá facturas con datos fiscales de todos los clientes. Cuando se construya el módulo de facturación, generar una contraseña de aplicación y guardarla en SSM como `/ticbo/prod/INVOICE_MAILBOX_PASSWORD` (`SecureString`), nunca en el chat.
+6. **Bucket de archivos (Cloudflare R2).** Hasta que exista, la API funciona pero los bots contestan que no pueden guardar el ticket. Crear un bucket privado (por ejemplo `ticbo-files`) y un token de API de R2 con *Object Read & Write* solo sobre ese bucket, y guardar en SSM como `SecureString`: `/ticbo/prod/OBJECT_STORAGE_ENDPOINT` (`https://<id de cuenta>.r2.cloudflarestorage.com`), `/ticbo/prod/OBJECT_STORAGE_BUCKET`, `/ticbo/prod/OBJECT_STORAGE_ACCESS_KEY_ID` y `/ticbo/prod/OBJECT_STORAGE_SECRET_ACCESS_KEY`. El siguiente despliegue los toma.
+7. **Buzón `ticbomx@gmail.com`**: verificación en dos pasos, contraseña única y correo/teléfono de recuperación, sin usarlo para nada más. Recibirá facturas con datos fiscales de todos los clientes. Cuando se construya el módulo de facturación, generar una contraseña de aplicación y guardarla en SSM como `/ticbo/prod/INVOICE_MAILBOX_PASSWORD` (`SecureString`), nunca en el chat.
 
 ## Riesgos aceptados por ahora
 

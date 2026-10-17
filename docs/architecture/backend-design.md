@@ -1,11 +1,11 @@
 # Ticbo · Diseño del backend
 
-Versión 0.2 · octubre 2026 · Estado: implementados la base (identidad, sesiones, esquema multi-tenant, vault de secretos, AWS Lambda), los perfiles fiscales y la conexión de WhatsApp. El pipeline de tickets está diseñado y pendiente de implementar.
+Versión 0.3 · octubre 2026 · Estado: implementados la base (identidad, sesiones, esquema multi-tenant, vault de secretos, AWS Lambda), los perfiles fiscales, los canales (WhatsApp y Telegram) y la primera etapa del pipeline: recibir y guardar la foto del ticket. Lectura del ticket, portales y buzón: diseñados, pendientes.
 
 Objetivo de despliegue: **AWS Lambda con pago por uso** (sin servidores encendidos) y PostgreSQL en **Supabase** durante la etapa inicial.
 
 Documentos relacionados:
-- [Flujo del bot de WhatsApp](../product/flujo-del-bot.md): qué hace el producto, paso a paso.
+- [Flujo del bot (WhatsApp y Telegram)](../product/flujo-del-bot.md): qué hace el producto, paso a paso.
 - [Decisiones de costo](./decisiones-de-costo.md): las tres decisiones de arranque y cómo quedaron.
 
 ---
@@ -32,15 +32,16 @@ Un punto que define la arquitectura: **Ticbo no timbra**. El CFDI lo emite el co
 ### Qué existe hoy en el código
 
 - Proyecto NestJS 12 + Fastify 5 en TypeScript estricto (ESM).
-- Esquema completo de PostgreSQL (15 tablas) con RLS en todas: aislamiento por cuenta en los datos de cliente y acceso exclusivo del rol de la API en las tablas de control.
+- Esquema completo de PostgreSQL (17 tablas) con RLS en todas: aislamiento por cuenta en los datos de cliente y acceso exclusivo del rol de la API en las tablas de control.
 - Módulo `iam`: registro e inicio de sesión con correo y contraseña (Argon2id), Google OAuth (OIDC + PKCE), JWT de acceso, refresh tokens rotativos con detección de reúso y bloqueo por intentos fallidos. Incluye guard global, decoradores y autorización por rol en la cuenta (`requireRole`: owner/admin administran, cualquier miembro consulta).
 - Módulo `fiscal`: perfiles fiscales (RFC) validados contra los catálogos del SAT (régimen fiscal y uso de CFDI compatibles con persona física o moral). Cada perfil recibe su alias del buzón de facturas (`ticbomx+<clave>@gmail.com`).
-- Módulo `messaging`, primera parte:
-  - conexión de números de WhatsApp, con el token de acceso y el *app secret* en el vault;
-  - teléfonos autorizados;
-  - verificación del webhook de Meta (`GET`).
-
-  La recepción de mensajes (`POST` con firma) llega con el pipeline de tickets.
+- Módulo `messaging`: los canales por los que llegan los tickets.
+  - WhatsApp: conexión de números (token de acceso y *app secret* en el vault), verificación del webhook (`GET`) y recepción de mensajes (`POST` con `X-Hub-Signature-256` sobre el cuerpo crudo).
+  - Telegram: conexión de bots con el token de @BotFather (`getMe` y `setWebhook` con `secret_token`) y recepción de actualizaciones.
+  - Teléfonos autorizados por canal; en Telegram la persona se vincula compartiendo su propio contacto.
+  - Respuestas del bot en un solo lugar (`chat-replies.ts`), iguales en los dos canales.
+- Módulo `receipts`: recibe la foto (JPEG, PNG o WebP, hasta 4 MB), la guarda y abre el ticket en `received` con el RFC del remitente (o el predeterminado) y su uso de CFDI sugerido. La API lista los tickets de la cuenta y entrega su foto.
+- Almacenamiento de archivos (`ObjectStorage`): Cloudflare R2 por la API de S3 en producción y una carpeta local en desarrollo. Sin la configuración del bucket, producción arranca igual y los bots avisan que no pueden guardar el ticket.
 - Módulo `vault`: cifrado de sobre AES-256-GCM con rotación de llaves.
 - Handler de AWS Lambda (`src/lambda.ts`) y empaquetado (`npm run build:lambda`), probado en la imagen oficial de Lambda con Node 24. Además del tráfico HTTP, atiende tareas programadas (`maintenance`, cada 6 horas).
 - Health checks, errores en formato RFC 9457 con errores por campo, configuración validada al arrancar.
@@ -216,6 +217,8 @@ erDiagram
 | `subscriptions` | control | Plan (`pro`, `negocio`, `despacho`), ciclo, estado e ids del proveedor de pagos. Índice único parcial: una sola suscripción no cancelada por cuenta. Los límites de cada plan viven en código, junto al catálogo de planes. |
 | `whatsapp_channels` | control | Número de WhatsApp Business conectado: `phone_number_id` (llave de ruteo del webhook), WABA y referencias a sus secretos. `account_id` nulo = número compartido de Ticbo. |
 | `whatsapp_senders` | control | Teléfonos autorizados a mandar tickets a un canal, con su usuario y RFC por defecto. |
+| `telegram_bots` | control | Bot de Telegram de la cuenta: id del bot en Telegram (único), usuario, referencia al token en el vault y SHA-256 del `secret_token` del webhook. |
+| `telegram_senders` | control | Teléfonos autorizados en un bot, con el usuario de Telegram que se vinculó al compartir su contacto. |
 | `merchants` | global | Catálogo compartido: comercio, RFC emisor, URL del portal, adaptador, campos que pide el portal y días de vigencia para facturar. |
 | `encrypted_secrets` | datos | Secretos cifrados (ver §7). |
 | `fiscal_profiles` | datos | RFC, razón social, régimen fiscal, código postal, uso de CFDI por defecto y buzón de Ticbo al que llegan los CFDI. CHECK de formato de RFC y CP. |
@@ -410,12 +413,11 @@ El `id_token` llega directo del endpoint de tokens de Google por TLS, así que, 
 
 ## 6. Pipeline asíncrono: de la foto al CFDI
 
-> Estado: el esquema (`whatsapp_channels`, `whatsapp_senders`, `receipts`, `merchants`, `invoices`) ya existe.
+> Estado:
 >
-> - Implementado en `messaging`: la conexión de canales y remitentes y la verificación `GET` del webhook.
-> - Pendientes:
->   - el `POST` del webhook (con validación de firma);
->   - los módulos `receipts` e `invoicing`.
+> - Implementado: los canales de WhatsApp y Telegram, sus webhooks y la etapa `receipt.ingest` (foto guardada, ticket en `received` y confirmación en el chat).
+> - Por ahora la ingesta corre dentro de la petición del webhook: descargar, guardar y responder toma 1–2 s. La cola SQS entra con la lectura del ticket, la primera etapa lenta.
+> - Pendientes: lectura del ticket (OCR), catálogo de comercios, portales, buzón e `invoicing`.
 
 Ver el flujo de producto completo en [flujo-del-bot.md](../product/flujo-del-bot.md). Aquí está lo técnico.
 
@@ -428,6 +430,17 @@ Cada cliente conecta **su propio número** de WhatsApp Business: captura en la a
 - Para que Meta no espere un arranque en frío de toda la API, el webhook puede vivir en su propia función pequeña (sin NestJS) que solo valida, encola y responde.
 - El canal se resuelve por `phone_number_id` en `whatsapp_channels` (plano de control) y el remitente por `wa_id` en `whatsapp_senders`. Un teléfono no autorizado recibe un mensaje de "número no registrado" y no genera trabajo.
 - A futuro, Ticbo puede registrarse como *Tech Provider* de Meta y usar *Embedded Signup*: el cliente conecta su número con unos clics y un solo webhook atiende a todos los canales, ruteado por `phone_number_id`. El modelo de datos ya lo soporta.
+- Celulares de México: WhatsApp reporta muchos como `521…` y la gente los escribe como `52…`. El remitente se busca con las dos formas y las respuestas van a la forma sin el 1.
+
+### Conexión de Telegram
+
+La alternativa sin trámites con Meta: el cliente crea un bot con @BotFather y pega su token.
+
+- `getMe` confirma el token y da el id del bot, único en `telegram_bots`: un bot no puede quedar en dos cuentas, y el segundo intento no le quita el webhook a la primera.
+- Ticbo llama `setWebhook` con `POST /api/v1/webhooks/telegram/:botId` y un `secret_token` aleatorio. Telegram lo manda en `X-Telegram-Bot-Api-Secret-Token` y se compara contra su SHA-256. Desconectar llama `deleteWebhook` y borra el token.
+- Telegram no da el teléfono de quien escribe. El bot le pide compartir su número con un botón (`request_contact`); si `contact.user_id` es el mismo que el remitente, el número es suyo y se vincula al teléfono autorizado (`telegram_senders.telegram_user_id`).
+- El webhook contesta `200` salvo bot o secreto inválidos: Telegram reintenta lo que falla, y una actualización que no se puede leer bloquearía las siguientes. Los problemas se explican en el chat.
+- Idempotencia: `source_message_id` es `<id del bot>:<chat>:<mensaje>`.
 
 ### Etapas
 
