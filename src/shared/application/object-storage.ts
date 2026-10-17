@@ -6,7 +6,7 @@ export interface StoredObject {
 }
 
 /**
- * Private file storage for ticket photos and CFDI files (Cloudflare R2 in
+ * Private file storage for ticket photos and CFDI files (Amazon S3 in
  * production, a folder in development). Keys are scoped by account:
  * `accounts/<account_id>/...`.
  */
@@ -19,7 +19,7 @@ export abstract class ObjectStorage {
   abstract delete(key: string): Promise<void>;
 }
 
-/** No storage is configured (production without the R2 settings). */
+/** No storage is configured (production without OBJECT_STORAGE_BUCKET). */
 export class StorageNotConfiguredError extends AppError {
   override readonly code = 'storage_not_configured';
   override readonly category = 'unavailable';

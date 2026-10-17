@@ -80,13 +80,16 @@ const envSchema = z
     INVOICE_MAILBOX_ADDRESS: z.email().default('ticbomx@gmail.com'),
     TELEGRAM_API_URL: httpUrl.default('https://api.telegram.org'),
     WHATSAPP_GRAPH_URL: httpUrl.default('https://graph.facebook.com'),
-    // S3-compatible bucket (Cloudflare R2). Without it, files go to a local
-    // folder outside production and nowhere in production.
-    OBJECT_STORAGE_ENDPOINT: z.url({ protocol: /^https?$/ }).optional(),
-    OBJECT_STORAGE_BUCKET: z.string().min(3).max(63).optional(),
-    OBJECT_STORAGE_REGION: z.string().min(1).default('auto'),
-    OBJECT_STORAGE_ACCESS_KEY_ID: z.string().min(1).optional(),
-    OBJECT_STORAGE_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+    // S3 bucket for ticket photos and CFDI files, reached with the runtime's AWS
+    // credentials (the Lambda role). Without it, files go to a local folder
+    // outside production and nowhere in production.
+    OBJECT_STORAGE_BUCKET: z
+      .string()
+      .regex(/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/, 'must be an S3 bucket name')
+      .optional(),
+    // Lambda sets AWS_REGION; the bucket lives in the same region by default.
+    OBJECT_STORAGE_REGION: z.string().min(1).optional(),
+    AWS_REGION: z.string().min(1).default('us-west-2'),
     OBJECT_STORAGE_DIR: z.string().min(1).default('.data/objects'),
   })
   .superRefine((env, ctx) => {
@@ -95,20 +98,6 @@ const envSchema = z
         code: 'custom',
         path: ['GOOGLE_CLIENT_ID'],
         message: 'GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set together',
-      });
-    }
-    const bucketSettings = [
-      env.OBJECT_STORAGE_ENDPOINT,
-      env.OBJECT_STORAGE_BUCKET,
-      env.OBJECT_STORAGE_ACCESS_KEY_ID,
-      env.OBJECT_STORAGE_SECRET_ACCESS_KEY,
-    ];
-    if (bucketSettings.some(Boolean) && !bucketSettings.every(Boolean)) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['OBJECT_STORAGE_ENDPOINT'],
-        message:
-          'OBJECT_STORAGE_ENDPOINT, _BUCKET, _ACCESS_KEY_ID and _SECRET_ACCESS_KEY must be set together',
       });
     }
     if (env.NODE_ENV === 'production' && !env.API_PUBLIC_URL.startsWith('https://')) {
@@ -211,19 +200,11 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
 }
 
 function storageOf(env: z.infer<typeof envSchema>): StorageConfig {
-  if (
-    env.OBJECT_STORAGE_ENDPOINT &&
-    env.OBJECT_STORAGE_BUCKET &&
-    env.OBJECT_STORAGE_ACCESS_KEY_ID &&
-    env.OBJECT_STORAGE_SECRET_ACCESS_KEY
-  ) {
+  if (env.OBJECT_STORAGE_BUCKET) {
     return {
       driver: 's3',
-      endpoint: env.OBJECT_STORAGE_ENDPOINT.replace(/\/+$/, ''),
       bucket: env.OBJECT_STORAGE_BUCKET,
-      region: env.OBJECT_STORAGE_REGION,
-      accessKeyId: env.OBJECT_STORAGE_ACCESS_KEY_ID,
-      secretAccessKey: env.OBJECT_STORAGE_SECRET_ACCESS_KEY,
+      region: env.OBJECT_STORAGE_REGION ?? env.AWS_REGION,
     };
   }
   // A Lambda's disk is temporary: a folder there would lose every photo.

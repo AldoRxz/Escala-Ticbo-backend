@@ -70,14 +70,8 @@ export interface InvoiceMailboxConfig {
 /** Where ticket photos and CFDI files are kept. */
 export type StorageConfig =
   | { driver: 'filesystem'; directory: string }
-  | {
-      driver: 's3';
-      endpoint: string;
-      bucket: string;
-      region: string;
-      accessKeyId: string;
-      secretAccessKey: string;
-    }
+  /** Amazon S3 with the runtime's credentials (the Lambda role in production). */
+  | { driver: 's3'; bucket: string; region: string }
   /** Production before the bucket exists: receipts cannot be stored yet. */
   | { driver: 'none' };
 

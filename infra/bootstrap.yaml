@@ -126,6 +126,52 @@ Resources:
               Bool:
                 aws:SecureTransport: 'false'
 
+  # Ticket photos, CFDI XML and PDF, under accounts/<account_id>/. Private: the
+  # API reads and writes with the Lambda role and hands files to members only.
+  # Retained if the stack goes away: it is customer data.
+  FilesBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub 'ticbo-files-${AWS::AccountId}-${AWS::Region}'
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: abort-incomplete-uploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+
+  FilesBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FilesBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt FilesBucket.Arn
+              - !Sub '${FilesBucket.Arn}/*'
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+
   # Ceiling for every role the application stacks create (e.g. the Lambda role):
   # whatever policies a template attaches, the role can do no more than this.
   WorkloadBoundary:
@@ -175,6 +221,19 @@ Resources:
             Effect: Allow
             Action: lambda:InvokeFunction
             Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AppPrefix}-*'
+          # Customers' files only; no bucket settings. Listing lets S3 answer 404
+          # (not 403) for a missing object.
+          - Sid: Files
+            Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+            Resource: !Sub '${FilesBucket.Arn}/accounts/*'
+          - Sid: ListFiles
+            Effect: Allow
+            Action: s3:ListBucket
+            Resource: !GetAtt FilesBucket.Arn
 
   # CloudFormation creates the application's resources with this role, never
   # with the GitHub role. It only touches resources named with AppPrefix.
@@ -398,3 +457,5 @@ Outputs:
     Value: !Ref ArtifactsBucket
   BackupsBucketName:
     Value: !Ref BackupsBucket
+  FilesBucketName:
+    Value: !Ref FilesBucket

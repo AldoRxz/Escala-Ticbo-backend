@@ -48,22 +48,6 @@ Parameters:
     Type: String
     NoEcho: true
     Default: ''
-  # Cloudflare R2 bucket for ticket photos and CFDI files. Until they exist the
-  # API runs, but the bots answer that they cannot store tickets yet.
-  ObjectStorageEndpoint:
-    Type: String
-    Default: ''
-  ObjectStorageBucket:
-    Type: String
-    Default: ''
-  ObjectStorageAccessKeyId:
-    Type: String
-    NoEcho: true
-    Default: ''
-  ObjectStorageSecretAccessKey:
-    Type: String
-    NoEcho: true
-    Default: ''
 
 Resources:
   ApiLogGroup:
@@ -106,10 +90,21 @@ Resources:
           VAULT_KEYS: !Ref VaultKeys
           GOOGLE_CLIENT_ID: !Ref GoogleClientId
           GOOGLE_CLIENT_SECRET: !Ref GoogleClientSecret
-          OBJECT_STORAGE_ENDPOINT: !Ref ObjectStorageEndpoint
-          OBJECT_STORAGE_BUCKET: !Ref ObjectStorageBucket
-          OBJECT_STORAGE_ACCESS_KEY_ID: !Ref ObjectStorageAccessKeyId
-          OBJECT_STORAGE_SECRET_ACCESS_KEY: !Ref ObjectStorageSecretAccessKey
+          # Created by infra/bootstrap.yaml; reached with this function's role.
+          OBJECT_STORAGE_BUCKET: !Sub 'ticbo-files-${AWS::AccountId}-${AWS::Region}'
+      Policies:
+        - Statement:
+            - Sid: Files
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:DeleteObject
+              Resource: !Sub 'arn:aws:s3:::ticbo-files-${AWS::AccountId}-${AWS::Region}/accounts/*'
+            - Sid: ListFiles
+              Effect: Allow
+              Action: s3:ListBucket
+              Resource: !Sub 'arn:aws:s3:::ticbo-files-${AWS::AccountId}-${AWS::Region}'
       Events:
         Api:
           Type: HttpApi
