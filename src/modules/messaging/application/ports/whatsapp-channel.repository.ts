@@ -26,8 +26,19 @@ export interface RemovedChannel {
 export interface WebhookChannel {
   id: string;
   accountId: string | null;
+  phoneNumberId: string;
   status: WhatsAppChannelStatus;
   verifyTokenHash: string | null;
+  accessTokenSecretId: string | null;
+  appSecretSecretId: string | null;
+}
+
+/** An authorized phone, as the webhook sees it. */
+export interface ChatWhatsAppSender {
+  id: string;
+  waId: string;
+  label: string | null;
+  defaultFiscalProfileId: string | null;
 }
 
 export interface NewSender {
@@ -59,6 +70,9 @@ export abstract class WhatsAppChannelRepository {
   abstract findForWebhook(id: string): Promise<WebhookChannel | null>;
 
   abstract markActive(id: string): Promise<void>;
+
+  /** The sender of the channel with any of these numbers (the forms one phone can take). */
+  abstract findSender(channelId: string, waIds: string[]): Promise<ChatWhatsAppSender | null>;
 
   /** @throws WhatsAppSenderAlreadyAuthorizedError, UnknownFiscalProfileError */
   abstract addSender(sender: NewSender): Promise<WhatsAppSender>;

@@ -4,6 +4,7 @@ import { ReceiptsModule } from '../receipts/receipts.module.js';
 import { VaultModule } from '../vault/vault.module.js';
 import { WhatsAppChannelRepository } from './application/ports/whatsapp-channel.repository.js';
 import { HandleTelegramUpdateUseCase } from './application/use-cases/handle-telegram-update.use-case.js';
+import { HandleWhatsAppWebhookUseCase } from './application/use-cases/handle-whatsapp-webhook.use-case.js';
 import { ConnectWhatsAppChannelUseCase } from './application/use-cases/connect-whatsapp-channel.use-case.js';
 import { DisconnectWhatsAppChannelUseCase } from './application/use-cases/disconnect-whatsapp-channel.use-case.js';
 import { ListWhatsAppChannelsUseCase } from './application/use-cases/list-whatsapp-channels.use-case.js';
@@ -15,6 +16,7 @@ import {
 import { RotateVerifyTokenUseCase } from './application/use-cases/rotate-verify-token.use-case.js';
 import { VerifyWebhookUseCase } from './application/use-cases/verify-webhook.use-case.js';
 import { TelegramApi } from './application/ports/telegram-api.js';
+import { WhatsAppCloudApi } from './application/ports/whatsapp-cloud-api.js';
 import { TelegramBotRepository } from './application/ports/telegram-bot.repository.js';
 import {
   AddTelegramSenderUseCase,
@@ -28,6 +30,10 @@ import { TelegramWebhooks, WebhookSettings, WebhookVerification } from './applic
 import { DrizzleTelegramBotRepository } from './infrastructure/drizzle-telegram-bot.repository.js';
 import { DrizzleWhatsAppChannelRepository } from './infrastructure/drizzle-whatsapp-channel.repository.js';
 import { FetchTelegramApi, TelegramApiSettings } from './infrastructure/fetch-telegram.api.js';
+import {
+  FetchWhatsAppCloudApi,
+  WhatsAppCloudSettings,
+} from './infrastructure/fetch-whatsapp-cloud.api.js';
 import { TelegramBotsController } from './presentation/http/telegram-bots.controller.js';
 import { TelegramWebhookController } from './presentation/http/telegram-webhook.controller.js';
 import { WhatsAppChannelsController } from './presentation/http/whatsapp-channels.controller.js';
@@ -56,6 +62,14 @@ import { WhatsAppWebhookController } from './presentation/http/whatsapp-webhook.
       }),
     },
     { provide: TelegramApi, useClass: FetchTelegramApi },
+    {
+      provide: WhatsAppCloudSettings,
+      inject: [AppConfig],
+      useFactory: (config: AppConfig): WhatsAppCloudSettings => ({
+        graphUrl: config.messaging.whatsappGraphUrl,
+      }),
+    },
+    { provide: WhatsAppCloudApi, useClass: FetchWhatsAppCloudApi },
     TelegramWebhooks,
     {
       provide: WebhookSettings,
@@ -80,6 +94,7 @@ import { WhatsAppWebhookController } from './presentation/http/whatsapp-webhook.
     UpdateTelegramSenderUseCase,
     RemoveTelegramSenderUseCase,
     HandleTelegramUpdateUseCase,
+    HandleWhatsAppWebhookUseCase,
   ],
 })
 export class MessagingModule {}

@@ -13,6 +13,7 @@ import {
 import { IngestReceiptUseCase } from '../../../receipts/application/use-cases/receipts.use-cases.js';
 import { MAX_RECEIPT_IMAGE_BYTES } from '../../../receipts/domain/receipt.js';
 import { formatPhone, normalizePhoneDigits, phoneVariants } from '../../domain/phone.js';
+import { CHAT_REPLIES } from '../chat-replies.js';
 import { TelegramBotNotFoundError, WebhookSecretMismatchError } from '../errors.js';
 import {
   type ReplyKeyboard,
@@ -43,28 +44,11 @@ export interface TelegramMessage {
     { fileId: string; mimeType?: string | undefined; fileSize?: number | undefined } | undefined;
 }
 
-const SHARE_CONTACT: ReplyKeyboard = { kind: 'share_contact', label: '📱 Compartir mi número' };
+const SHARE_CONTACT: ReplyKeyboard = {
+  kind: 'share_contact',
+  label: CHAT_REPLIES.shareContactButton,
+};
 const NO_KEYBOARD: ReplyKeyboard = { kind: 'remove' };
-
-export const TELEGRAM_REPLIES = {
-  askContact:
-    'Hola 👋 Soy el bot de facturas de Ticbo. Para mandarme tickets, primero confirma tu número con el botón «Compartir mi número».',
-  notOwnContact:
-    'Comparte tu propio número con el botón «Compartir mi número», no el de otro contacto.',
-  notAuthorized: (phone: string) =>
-    `El número ${phone} no está autorizado para mandar tickets a esta cuenta. Pide a quien administra Ticbo que lo agregue en Canales y luego escribe /start.`,
-  linked: (label: string | null) =>
-    `¡Listo${label ? `, ${label}` : ''}! Ya puedes mandarme fotos de tus tickets y yo me encargo de la factura. 📸`,
-  help: 'Mándame una foto de tu ticket y yo me encargo de la factura. 📸',
-  received: (receiver: { rfc: string; legalName: string } | null) =>
-    receiver
-      ? `✅ Recibí tu ticket. Lo voy a facturar a ${receiver.legalName} (${receiver.rfc}). Te aviso por aquí cuando tenga la factura.`
-      : '✅ Recibí tu ticket. Tu cuenta todavía no tiene un RFC registrado: agrégalo en Ticbo para que pueda facturarlo.',
-  onlyPhotos: 'Por ahora solo leo fotos de tickets (JPG, PNG o WebP). Mándamelo como foto.',
-  tooLarge:
-    'La foto pesa más de 4 MB. Mándala como foto, no como archivo, para que Telegram la comprima.',
-  failed: 'No pude guardar tu ticket en este momento. Inténtalo de nuevo en unos minutos.',
-} as const;
 
 /**
  * Handles one update Telegram delivered to a bot's webhook: links people who
@@ -114,7 +98,7 @@ export class HandleTelegramUpdateUseCase {
       await this.handle(bot, message, message.from.id, token, reply);
     } catch (error) {
       this.logger.error(`Telegram update for bot ${bot.id} failed`, describeError(error));
-      await reply(TELEGRAM_REPLIES.failed).catch(() => undefined);
+      await reply(CHAT_REPLIES.failed).catch(() => undefined);
     }
   }
 
@@ -131,7 +115,7 @@ export class HandleTelegramUpdateUseCase {
     }
     const sender = await this.bots.findSenderByUser(bot.id, userId);
     if (!sender) {
-      await reply(TELEGRAM_REPLIES.askContact, SHARE_CONTACT);
+      await reply(CHAT_REPLIES.askContact, SHARE_CONTACT);
       return;
     }
 
@@ -139,9 +123,9 @@ export class HandleTelegramUpdateUseCase {
     if (fileId) {
       await this.receive(bot, message, sender, fileId, token, reply);
     } else if (message.document) {
-      await reply(TELEGRAM_REPLIES.onlyPhotos);
+      await reply(CHAT_REPLIES.onlyPhotos);
     } else {
-      await reply(TELEGRAM_REPLIES.help);
+      await reply(CHAT_REPLIES.help);
     }
   }
 
@@ -153,7 +137,7 @@ export class HandleTelegramUpdateUseCase {
   ): Promise<void> {
     // A forwarded contact card names someone else; only the person's own proves the number.
     if (contact.userId !== userId) {
-      await reply(TELEGRAM_REPLIES.notOwnContact, SHARE_CONTACT);
+      await reply(CHAT_REPLIES.notOwnContact, SHARE_CONTACT);
       return;
     }
     const phone = normalizePhoneDigits(contact.phoneNumber);
@@ -162,12 +146,12 @@ export class HandleTelegramUpdateUseCase {
       : null;
     if (!sender) {
       await reply(
-        TELEGRAM_REPLIES.notAuthorized(phone ? formatPhone(phone) : contact.phoneNumber),
+        CHAT_REPLIES.notAuthorizedTelegram(phone ? formatPhone(phone) : contact.phoneNumber),
         NO_KEYBOARD,
       );
       return;
     }
-    await reply(TELEGRAM_REPLIES.linked(sender.label), NO_KEYBOARD);
+    await reply(CHAT_REPLIES.linked(sender.label), NO_KEYBOARD);
   }
 
   private async receive(
@@ -194,22 +178,22 @@ export class HandleTelegramUpdateUseCase {
         senderLabel: sender.label,
       });
       if (!duplicate) {
-        await reply(TELEGRAM_REPLIES.received(receipt.receiver));
+        await reply(CHAT_REPLIES.received(receipt.receiver));
       }
     } catch (error) {
       if (
         error instanceof TelegramFileTooLargeError ||
         error instanceof ReceiptImageTooLargeError
       ) {
-        await reply(TELEGRAM_REPLIES.tooLarge);
+        await reply(CHAT_REPLIES.tooLarge('Telegram'));
       } else if (error instanceof UnsupportedReceiptImageError) {
-        await reply(TELEGRAM_REPLIES.onlyPhotos);
+        await reply(CHAT_REPLIES.onlyPhotos);
       } else if (
         error instanceof StorageNotConfiguredError ||
         error instanceof StorageUnavailableError
       ) {
         this.logger.error(`Could not store a receipt photo: ${error.message}`);
-        await reply(TELEGRAM_REPLIES.failed);
+        await reply(CHAT_REPLIES.failed);
       } else {
         throw error;
       }

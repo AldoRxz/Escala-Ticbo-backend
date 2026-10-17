@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { API_BASE_PATH } from '../../../shared/infrastructure/http/api-path.js';
 
@@ -47,6 +47,23 @@ export class TelegramWebhooks {
   matches(secret: string, hash: string): boolean {
     return secretMatches(secret, hash);
   }
+}
+
+/**
+ * Whether Meta signed these exact bytes with the app secret:
+ * X-Hub-Signature-256 is "sha256=" + the hex HMAC-SHA256 of the raw body.
+ */
+export function metaSignatureMatches(
+  appSecret: string,
+  rawBody: Buffer,
+  header: string | undefined,
+): boolean {
+  const received = /^sha256=([a-f0-9]{64})$/i.exec(header ?? '')?.[1];
+  if (!received) {
+    return false;
+  }
+  const expected = createHmac('sha256', appSecret).update(rawBody).digest();
+  return timingSafeEqual(Buffer.from(received.toLowerCase(), 'hex'), expected);
 }
 
 /** 32 random characters of [A-Za-z0-9_-], which both Meta and Telegram accept. */

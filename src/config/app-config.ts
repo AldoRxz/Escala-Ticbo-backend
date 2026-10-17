@@ -84,6 +84,8 @@ export type StorageConfig =
 export interface MessagingConfig {
   /** Base URL of Telegram's Bot API (a fake server in tests). */
   telegramApiUrl: string;
+  /** Base URL of Meta's Graph API (a fake server in tests). */
+  whatsappGraphUrl: string;
 }
 
 /**

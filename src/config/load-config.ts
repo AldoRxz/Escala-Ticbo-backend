@@ -79,6 +79,7 @@ const envSchema = z
     // Inbox the fiscal profiles' plus-address aliases point to (docs: Buzón de facturas).
     INVOICE_MAILBOX_ADDRESS: z.email().default('ticbomx@gmail.com'),
     TELEGRAM_API_URL: httpUrl.default('https://api.telegram.org'),
+    WHATSAPP_GRAPH_URL: httpUrl.default('https://graph.facebook.com'),
     // S3-compatible bucket (Cloudflare R2). Without it, files go to a local
     // folder outside production and nowhere in production.
     OBJECT_STORAGE_ENDPOINT: z.url({ protocol: /^https?$/ }).optional(),
@@ -203,6 +204,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     messaging: {
       telegramApiUrl: env.TELEGRAM_API_URL.replace(/\/+$/, ''),
+      whatsappGraphUrl: env.WHATSAPP_GRAPH_URL.replace(/\/+$/, ''),
     },
     storage: storageOf(env),
   };

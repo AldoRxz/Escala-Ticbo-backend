@@ -7,6 +7,7 @@ import {
 } from '../errors.js';
 import type { SenderChanges } from '../ports/senders.js';
 import type {
+  ChatWhatsAppSender,
   NewChannel,
   NewSender,
   RemovedChannel,
@@ -90,8 +91,11 @@ export class InMemoryWhatsAppChannelRepository implements WhatsAppChannelReposit
         ? {
             id: channel.id,
             accountId: channel.accountId,
+            phoneNumberId: channel.phoneNumberId,
             status: channel.status,
             verifyTokenHash: channel.verifyTokenHash,
+            accessTokenSecretId: channel.accessTokenSecretId,
+            appSecretSecretId: channel.appSecretSecretId,
           }
         : null,
     );
@@ -103,6 +107,11 @@ export class InMemoryWhatsAppChannelRepository implements WhatsAppChannelReposit
       this.channels[index] = { ...this.channels[index]!, status: 'active' };
     }
     return Promise.resolve();
+  }
+
+  findSender(channelId: string, waIds: string[]): Promise<ChatWhatsAppSender | null> {
+    const sender = this.senders.find((s) => s.channelId === channelId && waIds.includes(s.waId));
+    return Promise.resolve(sender ?? null);
   }
 
   addSender(sender: NewSender): Promise<WhatsAppSender> {

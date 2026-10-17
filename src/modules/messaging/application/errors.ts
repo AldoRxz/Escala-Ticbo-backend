@@ -98,3 +98,21 @@ export class WebhookSecretMismatchError extends AppError {
     super('The webhook request does not carry the secret of this bot.');
   }
 }
+
+export class WhatsAppUnavailableError extends AppError {
+  override readonly code = 'whatsapp_unavailable';
+  override readonly category = 'unavailable';
+
+  constructor(options?: ErrorOptions) {
+    super('WhatsApp did not answer. Try again in a few minutes.', options);
+  }
+}
+
+export class WebhookSignatureMismatchError extends AppError {
+  override readonly code = 'webhook_signature_mismatch';
+  override readonly category = 'forbidden';
+
+  constructor() {
+    super('The webhook request is not signed with the app secret of this number.');
+  }
+}

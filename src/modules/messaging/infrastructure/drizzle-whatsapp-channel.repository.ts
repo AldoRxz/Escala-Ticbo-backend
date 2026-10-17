@@ -18,6 +18,7 @@ import {
 } from '../application/errors.js';
 import { type SenderChanges, UnknownFiscalProfileError } from '../application/ports/senders.js';
 import type {
+  ChatWhatsAppSender,
   NewChannel,
   NewSender,
   RemovedChannel,
@@ -125,8 +126,11 @@ export class DrizzleWhatsAppChannelRepository implements WhatsAppChannelReposito
       .select({
         id: whatsappChannels.id,
         accountId: whatsappChannels.accountId,
+        phoneNumberId: whatsappChannels.phoneNumberId,
         status: whatsappChannels.status,
         verifyTokenHash: whatsappChannels.verifyTokenHash,
+        accessTokenSecretId: whatsappChannels.accessTokenSecretId,
+        appSecretSecretId: whatsappChannels.appSecretSecretId,
       })
       .from(whatsappChannels)
       .where(eq(whatsappChannels.id, id))
@@ -139,6 +143,21 @@ export class DrizzleWhatsAppChannelRepository implements WhatsAppChannelReposito
       .update(whatsappChannels)
       .set({ status: 'active' })
       .where(and(eq(whatsappChannels.id, id), eq(whatsappChannels.status, 'pending_verification')));
+  }
+
+  async findSender(channelId: string, waIds: string[]): Promise<ChatWhatsAppSender | null> {
+    const [row] = await this.db
+      .select({
+        id: whatsappSenders.id,
+        waId: whatsappSenders.waId,
+        label: whatsappSenders.label,
+        defaultFiscalProfileId: whatsappSenders.defaultFiscalProfileId,
+      })
+      .from(whatsappSenders)
+      .where(and(eq(whatsappSenders.channelId, channelId), inArray(whatsappSenders.waId, waIds)))
+      .orderBy(asc(whatsappSenders.createdAt))
+      .limit(1);
+    return row ?? null;
   }
 
   async addSender(sender: NewSender): Promise<WhatsAppSender> {

@@ -72,22 +72,31 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
   return app;
 }
 
+declare module 'fastify' {
+  interface FastifyRequest {
+    /** The JSON body exactly as received, for webhook signatures (Meta signs the bytes). */
+    rawBody?: Buffer;
+  }
+}
+
 /**
  * Bodiless POSTs (/auth/refresh, /auth/logout) often arrive with
  * `content-type: application/json` because client wrappers always set it.
  * Fastify rejects that with 400; treat it as no body and keep Fastify's
- * prototype-poisoning-safe parser for everything else.
+ * prototype-poisoning-safe parser for everything else. The raw bytes stay on
+ * the request for webhooks that verify a signature over them.
  */
 function acceptEmptyJsonBodies(app: NestFastifyApplication): void {
   const fastify = app.getHttpAdapter().getInstance();
   const parseJson = fastify.getDefaultJsonParser('error', 'error');
   fastify.removeContentTypeParser('application/json');
-  fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (request, body, done) => {
-    const text = body as string; // parseAs: 'string'
-    if (text === '') {
+  fastify.addContentTypeParser('application/json', { parseAs: 'buffer' }, (request, body, done) => {
+    const bytes = body as Buffer; // parseAs: 'buffer'
+    if (bytes.length === 0) {
       done(null, undefined);
       return;
     }
-    void parseJson(request, text, done);
+    request.rawBody = bytes;
+    void parseJson(request, bytes.toString('utf8'), done);
   });
 }
